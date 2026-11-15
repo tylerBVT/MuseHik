@@ -1,0 +1,68 @@
+/*
+  All colours of the app live here, nowhere else. Component CSS only uses var(--...).
+  Dark mode = the same names with other values, switched by <html data-theme="dark">.
+  To change the look, edit the values below.
+*/
+:root {
+  color-scheme: light;
+
+  --bg: #f2f4f7;            /* page background */
+  --surface: #ffffff;       /* cards, bars, inputs */
+  --surface-alt: #f9fafb;   /* slightly tinted panels */
+  --hover: #f2f4f7;         /* hovered buttons / rows, empty bars */
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+
+  --text: #101828;
+  --text-strong: #344054;
+  --text-secondary: #475467;
+  --text-muted: #667085;
+  --text-faint: #98a2b3;
+
+  --accent: #7f56d9;
+  --accent-hover: #6941c6;
+  --accent-soft: #a48ae8;
+  --accent-bg: #f4ebff;
+  --accent-overlay: rgba(105, 65, 198, 0.75);
+  --on-accent: #ffffff;     /* text on accent / dark overlays */
+
+  --danger: #b42318;
+  --danger-border: #fda29b;
+  --info: #175cd3;
+  --success: #067647;
+
+  --shadow: rgba(16, 24, 40, 0.08);
+  --shadow-strong: rgba(16, 24, 40, 0.25);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0c111d;
+  --surface: #161b26;
+  --surface-alt: #1d2330;
+  --hover: #242b3a;
+  --border: #2a3243;
+  --border-strong: #3b4459;
+
+  --text: #f5f6f8;
+  --text-strong: #e1e4ea;
+  --text-secondary: #c2c8d3;
+  --text-muted: #98a2b3;
+  --text-faint: #707a8d;
+
+  --accent: #9b7bf0;
+  --accent-hover: #b39af5;
+  --accent-soft: #7f56d9;
+  --accent-bg: #2a2142;
+  --accent-overlay: rgba(127, 86, 217, 0.8);
+  --on-accent: #ffffff;
+
+  --danger: #f97066;
+  --danger-border: #7a2b25;
+  --info: #84caff;
+  --success: #47cd89;
+
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-strong: rgba(0, 0, 0, 0.6);
+}

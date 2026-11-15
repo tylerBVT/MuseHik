@@ -1,3 +1,42 @@
-main {
-  padding: 48px 16px;
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 0;
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px 16px 150px; /* bottom space so the fixed player never hides the last song */
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.gear {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.gear:hover {
+  color: var(--text);
+  background: var(--hover);
 }

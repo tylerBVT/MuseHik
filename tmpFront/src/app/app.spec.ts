@@ -15,8 +15,8 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    const input = el.querySelector('input') as HTMLInputElement;
-    const button = el.querySelector('button') as HTMLButtonElement;
+    const input = el.querySelector('app-link-input input') as HTMLInputElement;
+    const button = el.querySelector('app-link-input button') as HTMLButtonElement;
 
     expect(button.disabled).toBe(true);
 

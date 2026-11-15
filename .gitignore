@@ -17,3 +17,12 @@ __pycache__/
 # Local runtime files
 *.log
 .idea/
+
+# Machine-specific settings (copy tmpBack/config.example.json to tmpBack/config.json)
+tmpBack/config.json
+
+# Local library index
+tmpBack/data/
+
+# Third-party player code kept only for reading/inspiration
+/reference/

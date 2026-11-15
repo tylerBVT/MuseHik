@@ -26,36 +26,54 @@ Living file so context isn't lost. Complements `README.md` (music player archite
 YouTube links are the easy case: step 2 isn't needed, the link already is the source.
 Caveat: audio quality is that of YouTube (lossy), and matches can pick the wrong recording.
 
-## Current objective (experiment 1): three flows, one UI
-Architecture (`tmpBack/`, Node, no dependencies): one **service per platform**, one shared **engine**.
-```
-services/youtube.mjs   link is already the source (single video)
-services/spotify.mjs   metadata from public embed page (~50 tracks max per playlist)
-services/deezer.mjs    metadata from api.deezer.com (full playlists, no login)
-services/index.mjs     registry + detect(link): picks the service from the pasted link
-engine.mjs             YouTube search (scored by title/artist/duration) + yt-dlp MP3 download + ffmpeg tagging
-lib.mjs                pure helpers (scoring, filenames)
-server.mjs             HTTP: POST /api/download -> job id, GET /api/jobs/:id -> progress
-ytdlp_launcher.py      runs yt-dlp with a per-process DNS-over-HTTPS fallback for YouTube names (see below)
-e2e.mjs                end-to-end check of all three flows against a running server
-```
-Add a platform = one new file in `services/` + one line in `services/index.mjs`.
+## Status (2026-11-15): downloader + library + player, all working
+Stack: **Angular** front end (`tmpFront/`), **Node** server with no framework (`tmpBack/`), **SQLite** library index (Node built-in `node:sqlite`),
+yt-dlp + ffmpeg in `tmpBack/.venv`. Only npm dependency of the server: `music-metadata` (reads tags/covers).
 
-- [x] Angular one-page UI in `tmpFront/` (link box, Download button, popups with live progress, failure count).
-- [x] yt-dlp + portable ffmpeg in `tmpBack/.venv` (use `python -m yt_dlp`; the `.exe` launcher is blocked by Windows Application Control).
-- [x] Unit tests: `cd tmpBack && node --test lib.test.mjs` (8 pass).
-- [x] Live check: Deezer playlist from `musicLinks.txt` resolves to 146 tracks; Spotify public playlist resolves to 50.
-- [x] **End-to-end verified (2026-11-15)**: `node e2e.mjs` -> PASS for YouTube video, Spotify track, Deezer track. Files in `downloadedMusic/` are 320 kbps MP3 with title/artist/album/track tags and cover art.
-- [x] **YouTube block coexistence**: the owner blocks YouTube PC-wide via the Windows hosts file (self-control rule for Chrome). `ytdlp_launcher.py` overrides name lookup only inside the yt-dlp process (for YouTube-related hostnames, only when the system answer is 0.0.0.0/failed) using DoH (1.1.1.1, then 8.8.8.8). Hosts file and other apps untouched; Chrome stays blocked. Verified with the hosts block active.
-- [ ] Verify the page in a real browser with screenshots.
-- To run: `cd tmpBack && node server.mjs`, then `cd tmpFront && npm start`, open http://localhost:4200.
+### What was borrowed from the three reference apps
+| Idea | From |
+|---|---|
+| SQLite library index is the source of truth; the folder is only reconciled into it | Harmony (ADR 0001) |
+| Flat `Artist - Title.ext` files, playlists = membership data, not folders | Harmony |
+| Duplicate check by ISRC, then normalised key (+ duration); version words (remix, live...) keep songs apart; never auto-delete | Harmony + SongMirror |
+| Skip files that exist, resumable runs, per-track failure reasons, editable retry (retry still TODO) | SongMirror / OpenCrate |
+| Cover art embedded in every file | OpenCrate |
+| Spotify = metadata only, audio matched on YouTube | OpenCrate / spotDL |
+None of the three has a player (Harmony delegates to Navidrome, SongMirror to Jellyfin); the player is our own.
 
-## Later objectives
-- Spotify links (metadata via embed + YouTube match), then Deezer (public API + YouTube match).
-- Playlists (multi-track), progress display, error handling for unavailable videos.
-- Tagging + cover art, folder layout like OpenCrate.
-- Tauri: bundle yt-dlp/ffmpeg as sidecar binaries (Windows).
-- Music player features from README.
+### Layout of `tmpBack/`
+```
+services/{youtube,spotify,deezer}.mjs   one file per platform: parse link + read track list. index.mjs = registry/detect()
+engine.mjs      YouTube search (scored by title/artist/duration), yt-dlp MP3 download, ffmpeg tagging, config.json loading
+library.mjs     SQLite index: scan folder, findDuplicate(), list, cover art
+lib.mjs         pure helpers (scoring, trackKey, fileBase)
+server.mjs      jobs (POST /api/download, GET /api/jobs/:id, POST /api/jobs/:id/cancel) + library (GET /api/library,
+                /api/library/:id/stream with HTTP Range, /api/library/:id/cover, POST /api/library/rescan)
+ytdlp_launcher.py   yt-dlp with a per-process DNS-over-HTTPS fallback (see "YouTube block" below)
+config.json     musicDir (git-ignored; template config.example.json). Priority: MUSIC_DIR env > config.json > ../downloadedMusic
+migrate-flat.mjs   one-off: flatten old playlist folders / strip "NN - " prefixes (dry run unless --apply). Already applied.
+tests           node --test lib.test.mjs (12 unit tests); e2e.mjs (3 platforms), e2e-stop.mjs (Stop button), e2e-playlists.mjs,
+                demo-ui.mjs <link> (visible Chrome pastes+downloads), ui-check.mjs (13 player checks in real Chrome), cdp.mjs helper
+```
+### Done and verified
+- [x] Download from YouTube (video + playlist), Spotify (track/album/playlist, embed limit ~50-100), Deezer (full playlists). Link platform is auto-detected.
+- [x] Playlist progress bar, 3 downloads in parallel, each file lands as soon as done, Stop keeps finished tracks and removes half-finished ones.
+- [x] Flat library folder `C:/Users/tyler/Documents/downloadedMusic` (outside OneDrive; 107 songs after migration). Folder contains only audio.
+- [x] Before any search/download the library is checked; known songs are skipped. UI: expandable "already on your device" and "could not be downloaded" lists with the reason.
+- [x] Player: song list with covers + text search, play/pause, previous (restarts if >3 s in) / next, seek, volume, now-playing bar, MediaSession (media keys). `node ui-check.mjs` = 13/13 pass in Chrome.
+- [x] YouTube block: the owner blocks YouTube PC-wide in the Windows hosts file (self-control for Chrome). `ytdlp_launcher.py` asks DoH (1.1.1.1, then 8.8.8.8) only inside the yt-dlp process, only for YouTube names and only when the system answer is 0.0.0.0/failed. Hosts file and Chrome untouched.
+
+### Listening experience (spec written, waiting for review)
+Full spec with per-requirement test status: `docs/PLAYER_SPEC.md` (Listen home page, auto-next, Deezer-style mini player,
+full-screen player, shuffle, repeat, remembered settings, automated test plan, manual test sheet).
+
+### Next ideas (not started)
+- [ ] "Retry failed" button (+ editable source URL like OpenCrate); persist job history.
+- [ ] Format option: keep YouTube's AAC/Opus (`.m4a`, ~3x smaller, no re-encode) instead of MP3 320k. Format is the only open decision from the design talk; MP3 kept for now.
+- [ ] Playlists as data in the library (membership by track id) + `.m3u8` export; then queue/shuffle/repeat in the player.
+- [ ] Spotify full playlists (embed caps at ~50-100; needs a token like OpenCrate/Harmony).
+- [ ] Spotify "Dance Party" and YouTube "Teen Party Music" playlist runs (only Deezer "phil harmonie" was tested end to end).
+- [ ] Tauri shell (Windows) with yt-dlp/ffmpeg as sidecars; Android build with native background playback (see README).
 
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.

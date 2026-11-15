@@ -1,0 +1,71 @@
+<section class="library">
+  <header class="head">
+    <h2>
+      {{ heading() }}
+      <span class="count">
+        @if (query()) {
+          {{ visible().length }} of {{ tracks().length }} songs
+        } @else {
+          {{ tracks().length }} songs
+        }
+      </span>
+    </h2>
+    <input
+      type="search"
+      class="search"
+      placeholder="Search title, artist or album"
+      aria-label="Search the library"
+      autocomplete="off"
+      [value]="query()"
+      (input)="onSearch($event)"
+    />
+  </header>
+
+  @if (library.error(); as message) {
+    <p class="notice error">{{ message }}</p>
+  } @else if (library.loading() && !tracks().length) {
+    <p class="notice">Loading your library...</p>
+  } @else if (!tracks().length) {
+    <p class="notice">{{ emptyMessage() }}</p>
+  } @else if (!visible().length) {
+    <p class="notice">No song matches "{{ query() }}".</p>
+  }
+
+  <ul class="tracks">
+    @for (track of visible(); track track.id) {
+      <li>
+        <button
+          type="button"
+          class="row"
+          [class.current]="player.current()?.id === track.id"
+          [attr.aria-label]="'Play ' + track.title + ' by ' + track.artist"
+          (click)="play(track)"
+        >
+          <span class="art">
+            @if (noCover().has(track.id)) {
+              <span class="placeholder" aria-hidden="true">&#9835;</span>
+            } @else {
+              <img
+                [src]="coverUrl(track)"
+                alt=""
+                loading="lazy"
+                width="44"
+                height="44"
+                (error)="coverFailed(track)"
+              />
+            }
+            @if (player.current()?.id === track.id) {
+              <span class="state" aria-hidden="true">{{ player.playing() ? '❚❚' : '▶' }}</span>
+            }
+          </span>
+          <span class="meta">
+            <span class="title">{{ track.title }}</span>
+            <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+          </span>
+          <span class="album">{{ track.album }}</span>
+          <span class="time">{{ formatTime(track.duration) }}</span>
+        </button>
+      </li>
+    }
+  </ul>
+</section>

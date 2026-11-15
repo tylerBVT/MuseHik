@@ -1,3 +1,40 @@
-<main>
-  <app-link-input />
+@if (page() === 'home') {
+  <header class="top">
+    <h1>MuseHik</h1>
+    <button type="button" class="gear" aria-label="Settings" title="Settings" (click)="nav.go({ page: 'settings' })">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path
+          d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54A.48.48 0 0 0 13.9 2h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.48.48 0 0 0-.61.22L2.68 8.47a.48.48 0 0 0 .12.61l2.03 1.58c-.05.31-.08.63-.08.94s.03.64.08.94l-2.03 1.58a.48.48 0 0 0-.12.61l1.92 3.32c.12.22.37.29.61.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.41.48.41h3.84c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.49 0 .61-.22l1.92-3.32a.48.48 0 0 0-.12-.61zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"
+          fill="currentColor"
+        />
+      </svg>
+    </button>
+  </header>
+}
+
+<main class="page">
+  @switch (page()) {
+    @case ('home') {
+      <app-home />
+    }
+    @case ('settings') {
+      <app-settings />
+    }
+    @case ('tracks') {
+      <app-tracks-page />
+    }
+    @case ('create') {
+      <app-playlist-editor />
+    }
+    @case ('edit') {
+      <app-playlist-editor [id]="playlistId()" />
+    }
+    @case ('playlist') {
+      <app-playlist-page [id]="playlistId()!" />
+    }
+  }
+  <!-- Always mounted (only hidden), so a running download keeps its progress when you leave the page. -->
+  <app-download-page [hidden]="page() !== 'download'" />
 </main>
+
+<app-player-bar />

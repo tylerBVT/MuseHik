@@ -1,0 +1,25 @@
+<app-page-header title="Settings" />
+
+<section class="group" aria-labelledby="appearance">
+  <h2 id="appearance">Appearance</h2>
+  <div class="row">
+    <div>
+      <div class="label">Theme</div>
+      <div class="hint">"System" follows your Windows setting.</div>
+    </div>
+    <div class="choices" role="radiogroup" aria-label="Theme">
+      @for (t of themes; track t.value) {
+        <button
+          type="button"
+          class="choice"
+          role="radio"
+          [class.on]="theme.choice() === t.value"
+          [attr.aria-checked]="theme.choice() === t.value"
+          (click)="theme.set(t.value)"
+        >
+          {{ t.label }}
+        </button>
+      }
+    </div>
+  </div>
+</section>

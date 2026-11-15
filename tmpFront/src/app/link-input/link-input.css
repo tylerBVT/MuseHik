@@ -6,9 +6,9 @@
   max-width: 520px;
   margin: 0 auto;
   padding: 24px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -21,7 +21,7 @@ h1 {
 
 .help {
   margin: 0;
-  color: #475467;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -32,12 +32,12 @@ label {
 input {
   padding: 10px 12px;
   font-size: 1rem;
-  border: 1px solid #98a2b3;
+  border: 1px solid var(--text-faint);
   border-radius: 8px;
 }
 
 input:focus {
-  outline: 2px solid #7f56d9;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
@@ -45,17 +45,117 @@ button {
   padding: 10px 16px;
   font-size: 1rem;
   font-weight: 600;
-  color: #fff;
-  background: #7f56d9;
+  color: var(--on-accent);
+  background: var(--accent);
   border: none;
   border-radius: 8px;
   cursor: pointer;
 }
 
 button:disabled {
-  background: #d0d5dd;
-  color: #667085;
+  background: var(--border-strong);
+  color: var(--text-muted);
   cursor: not-allowed;
+}
+
+input:disabled {
+  background: var(--hover);
+  color: var(--text-muted);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.progress-head,
+.progress-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.progress-head .title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-head .count,
+.progress-foot .percent {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.progress-foot .current {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 0;
+}
+
+.bar {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 7px;
+  transition: width 0.4s ease;
+}
+
+.bar-fill.busy {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--accent),
+    var(--accent) 10px,
+    var(--accent-soft) 10px,
+    var(--accent-soft) 20px
+  );
+  background-size: 28px 28px;
+  animation: slide 0.8s linear infinite;
+}
+
+@keyframes slide {
+  to {
+    background-position: 28px 0;
+  }
+}
+
+.failed {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+button.stop {
+  align-self: flex-start;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+button.stop:disabled {
+  background: var(--hover);
+  color: var(--text-muted);
+  border-color: var(--border-strong);
 }
 
 .toast {
@@ -69,14 +169,14 @@ button:disabled {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 10px;
-  color: #fff;
-  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.25);
+  color: var(--on-accent);
+  box-shadow: 0 6px 20px var(--shadow-strong);
   word-break: break-word;
 }
 
-.toast.info { background: #175cd3; }
-.toast.success { background: #067647; }
-.toast.error { background: #b42318; }
+.toast.info { background: var(--info); }
+.toast.success { background: var(--success); }
+.toast.error { background: var(--danger); }
 
 .toast .close {
   padding: 0 6px;
@@ -84,4 +184,60 @@ button:disabled {
   line-height: 1;
   background: transparent;
   color: inherit;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt);
+  font-size: 0.92rem;
+}
+
+.summary-line {
+  margin: 0;
+}
+
+.summary details {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.summary summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.summary details.problem summary {
+  color: var(--danger);
+}
+
+.summary ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.summary li {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hover);
+}
+
+.summary .name {
+  font-weight: 600;
+}
+
+.summary .why {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  word-break: break-word;
 }

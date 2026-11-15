@@ -8,6 +8,7 @@ const mapTrack = (t, number, fallbackAlbum = '') => ({
   duration: t.duration || 0,
   number,
   album: t.album?.title || fallbackAlbum,
+  isrc: t.isrc || undefined,
 });
 
 /** Builds { name, type, tracks[] } from Deezer API payloads. */

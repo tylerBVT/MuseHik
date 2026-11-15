@@ -27,5 +27,18 @@ export function bestMatch(track, candidates) {
   return [...candidates].sort((a, b) => scoreCandidate(track, b) - scoreCandidate(track, a))[0];
 }
 
-export const trackFilename = (t, total) =>
-  `${String(t.number).padStart(Math.max(2, String(total).length), '0')} - ${safeName(t.artist || 'Unknown Artist')} - ${safeName(t.title)}`;
+/** Flat library file name (without extension): "Artist - Title". */
+export const fileBase = (artist, title) => safeName(artist ? `${artist} - ${title}` : title);
+
+// "feat." credits are not part of a song's identity; version words (remix, live, ...) are kept on purpose.
+const stripFeat = s => String(s)
+  .replace(/[(\[]\s*(?:feat\.?|ft\.?|featuring|with)\b[^)\]]*[)\]]/gi, '')
+  .replace(/\s(?:feat\.?|ft\.?|featuring)\s.*$/i, '');
+const primaryArtist = a => String(a).split(/,|&|\bfeat\.?\b|\bft\.?\b/i)[0];
+
+/** Identity key used to recognise "the same song" across platforms and files. */
+export const trackKey = (artist, title) =>
+  `${words(primaryArtist(artist)).join(' ')}|${words(stripFeat(title)).join(' ')}`;
+
+/** True when two durations (seconds) are compatible; unknown durations never block a match. */
+export const sameLength = (a, b, tolerance = 6) => !a || !b || Math.abs(a - b) <= tolerance;

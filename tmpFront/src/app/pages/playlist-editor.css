@@ -1,0 +1,128 @@
+:host {
+  display: block;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.name,
+.search {
+  padding: 9px 12px;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+  background: var(--surface);
+  border: 1px solid var(--text-faint);
+  border-radius: 8px;
+}
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.count {
+  margin-left: 8px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.search {
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.save {
+  padding: 8px 18px;
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.songs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.song {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.song:hover {
+  background: var(--hover);
+}
+
+.song.on {
+  background: var(--accent-bg);
+}
+
+.song input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title,
+.artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.artist {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.none {
+  padding: 16px;
+  color: var(--text-muted);
+}

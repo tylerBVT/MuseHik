@@ -1,0 +1,136 @@
+@if (player.current(); as track) {
+  <footer class="bar" aria-label="Player">
+    <div class="now">
+      <span class="art">
+        @if (coverMissing() === track.id) {
+          <span class="placeholder" aria-hidden="true">♫</span>
+        } @else {
+          <img
+            [src]="coverUrl(track)"
+            alt=""
+            width="52"
+            height="52"
+            (error)="coverMissing.set(track.id)"
+          />
+        }
+      </span>
+      <span class="meta">
+        <span class="title" [title]="track.title">{{ track.title }}</span>
+        <span class="artist">{{ player.error() || track.artist || 'Unknown artist' }}</span>
+      </span>
+    </div>
+
+    <div class="center">
+      <div class="controls">
+        <button
+          type="button"
+          class="ctl toggle shuffle"
+          [class.on]="player.shuffle()"
+          [attr.aria-pressed]="player.shuffle()"
+          [attr.aria-label]="player.shuffle() ? 'Shuffle: on' : 'Shuffle: off'"
+          [title]="player.shuffle() ? 'Shuffle: on' : 'Shuffle: off'"
+          (click)="player.toggleShuffle()"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="ctl"
+          aria-label="Previous track"
+          [disabled]="!player.hasPrevious() && player.position() < 1"
+          (click)="player.previous()"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M6 5h2v14H6zM20 5v14L9 12z" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="ctl play"
+          [attr.aria-label]="player.playing() ? 'Pause' : 'Play'"
+          (click)="player.toggle()"
+        >
+          @if (player.playing()) {
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+              <path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor" />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+              <path d="M7 4.5v15l13-7.5z" fill="currentColor" />
+            </svg>
+          }
+        </button>
+        <button
+          type="button"
+          class="ctl"
+          aria-label="Next track"
+          [disabled]="!player.hasNext()"
+          (click)="player.next()"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M16 5h2v14h-2zM4 5l11 7L4 19z" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="ctl toggle repeat"
+          [class.on]="player.repeat() !== 'off'"
+          [attr.aria-pressed]="player.repeat() !== 'off'"
+          [attr.aria-label]="'Repeat: ' + player.repeat()"
+          [title]="'Repeat: ' + player.repeat()"
+          (click)="player.cycleRepeat()"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path
+              d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"
+              fill="currentColor"
+            />
+            @if (player.repeat() === 'one') {
+              <text x="12" y="15.2" font-size="8.5" font-weight="700" text-anchor="middle" fill="currentColor">1</text>
+            }
+          </svg>
+        </button>
+      </div>
+
+      <div class="seek">
+        <span class="time">{{ formatTime(shownPosition()) }}</span>
+        <input
+          type="range"
+          class="slider"
+          aria-label="Seek"
+          min="0"
+          step="1"
+          [max]="player.duration() || track.duration || 0"
+          [value]="shownPosition()"
+          (input)="onSeekInput($event)"
+          (change)="onSeekCommit($event)"
+        />
+        <span class="time">{{ formatTime(player.duration() || track.duration) }}</span>
+      </div>
+    </div>
+
+    <div class="volume">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path
+          d="M3 9v6h4l5 4V5L7 9zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"
+          fill="currentColor"
+        />
+      </svg>
+      <input
+        type="range"
+        class="slider"
+        aria-label="Volume"
+        min="0"
+        max="1"
+        step="0.01"
+        [value]="player.volume()"
+        (input)="onVolume($event)"
+      />
+    </div>
+  </footer>
+}

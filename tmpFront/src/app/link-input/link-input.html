@@ -1,22 +1,105 @@
 <section class="card">
-  <h1>Add music</h1>
+  <h1>Download from a link</h1>
   <p class="help">
-    Paste a link from <strong>YouTube</strong> (single video) or <strong>Spotify</strong> or <strong>Deezer</strong> (track, album or playlist). The platform is detected from the link.
+    Paste a link from <strong>YouTube</strong>, <strong>Spotify</strong> or <strong>Deezer</strong>
+    (a track, an album or a whole playlist). The platform is detected from the link.
   </p>
 
   <label for="music-link">Music or playlist link</label>
   <input
     id="music-link"
     type="text"
-    placeholder="https://www.youtube.com/watch?v=..."
+    placeholder="https://www.deezer.com/playlist/..."
     autocomplete="off"
     [value]="link()"
+    [disabled]="downloading()"
     (input)="onInput($event)"
   />
 
   <button type="button" [disabled]="!canDownload()" (click)="download()">
     {{ downloading() ? 'Downloading...' : 'Download' }}
   </button>
+
+  @if (job(); as j) {
+    <div class="progress" aria-live="polite">
+      <div class="progress-head">
+        <span class="title">{{ j.name || 'Reading link...' }}</span>
+        <span class="count">
+          @if (j.total > 0) {
+            {{ j.done }} / {{ j.total }} tracks
+          }
+        </span>
+      </div>
+
+      <div
+        class="bar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-valuenow]="percent()"
+      >
+        <div
+          class="bar-fill"
+          [class.busy]="percent() === null"
+          [style.width.%]="percent() ?? 100"
+        ></div>
+      </div>
+
+      <div class="progress-foot">
+        <span class="percent">{{ percent() === null ? '' : percent() + '%' }}</span>
+        <span class="current" [title]="j.current">{{ j.current }}</span>
+      </div>
+
+      @if (j.failed.length) {
+        <p class="failed">{{ j.failed.length }} track(s) could not be downloaded.</p>
+      }
+      @if (j.warning) {
+        <p class="failed">{{ j.warning }}</p>
+      }
+
+      <button type="button" class="stop" [disabled]="stopping() || !j.id" (click)="stop()">
+        {{ stopping() ? 'Stopping...' : 'Stop (keeps finished tracks)' }}
+      </button>
+    </div>
+  }
+
+  @if (summary(); as s) {
+    <div class="summary">
+      <p class="summary-line">
+        <strong>{{ s.status === 'cancelled' ? 'Stopped' : 'Finished' }}</strong>
+        {{ s.name ? '"' + s.name + '": ' : '' }}{{ s.files.length }} new,
+        {{ s.skippedList.length }} already in your library, {{ s.failed.length }} failed.
+      </p>
+
+      @if (s.skippedList.length) {
+        <details>
+          <summary>{{ s.skippedList.length }} song(s) skipped, already on your device</summary>
+          <ul>
+            @for (item of s.skippedList; track item.track) {
+              <li>
+                <span class="name">{{ item.track }}</span>
+                <span class="why">{{ item.reason }}</span>
+              </li>
+            }
+          </ul>
+        </details>
+      }
+
+      @if (s.failed.length) {
+        <details class="problem">
+          <summary>{{ s.failed.length }} song(s) could not be downloaded</summary>
+          <ul>
+            @for (item of s.failed; track item.track) {
+              <li>
+                <span class="name">{{ item.track }}</span>
+                <span class="why">{{ item.error }}</span>
+              </li>
+            }
+          </ul>
+        </details>
+      }
+    </div>
+  }
 </section>
 
 @if (toast(); as t) {

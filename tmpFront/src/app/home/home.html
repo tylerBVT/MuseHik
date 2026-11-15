@@ -1,0 +1,41 @@
+<nav class="tiles" aria-label="Library">
+  <button type="button" class="tile" (click)="nav.go({ page: 'tracks' })">
+    <span class="icon">
+      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z" fill="currentColor" />
+      </svg>
+    </span>
+    <span class="name">All tracks</span>
+    <span class="hint">{{ library.tracks().length }} songs</span>
+  </button>
+
+  <button type="button" class="tile" (click)="nav.go({ page: 'download' })">
+    <span class="icon">
+      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z" fill="currentColor" />
+      </svg>
+    </span>
+    <span class="name">Download new tracks</span>
+  </button>
+
+  <button type="button" class="tile" (click)="nav.go({ page: 'create' })">
+    <span class="icon">
+      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <path d="M14 10H3v2h11zm0-4H3v2h11zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2zM3 16h7v-2H3z" fill="currentColor" />
+      </svg>
+    </span>
+    <span class="name">Create playlist</span>
+  </button>
+
+  @for (playlist of playlists(); track playlist.id) {
+    <button type="button" class="tile" (click)="nav.go({ page: 'playlist', id: playlist.id })">
+      <span class="icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+          <path d="M15 6H3v2h12zm0 4H3v2h12zM3 16h8v-2H3zM17 6v8.18a3 3 0 1 0 2 2.82V8h3V6z" fill="currentColor" />
+        </svg>
+      </span>
+      <span class="name">{{ playlist.name }}</span>
+      <span class="hint">{{ playlist.count }} {{ playlist.count === 1 ? 'song' : 'songs' }}</span>
+    </button>
+  }
+</nav>

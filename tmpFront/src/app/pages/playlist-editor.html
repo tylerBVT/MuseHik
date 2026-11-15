@@ -1,0 +1,53 @@
+<app-page-header [title]="id() === undefined ? 'Create playlist' : 'Edit playlist'">
+  <button type="button" class="save" [disabled]="!canSave()" (click)="save()">Save</button>
+</app-page-header>
+
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+<label class="field">
+  <span>Name</span>
+  <input
+    type="text"
+    class="name"
+    maxlength="80"
+    placeholder="My playlist"
+    autocomplete="off"
+    [value]="name()"
+    (input)="name.set($any($event.target).value)"
+    (keydown.enter)="save()"
+  />
+</label>
+
+<div class="pick">
+  <h2>
+    Songs
+    <span class="count">{{ selected().length }} selected</span>
+  </h2>
+  <input
+    type="search"
+    class="search"
+    placeholder="Search title, artist or album"
+    aria-label="Search songs to add"
+    autocomplete="off"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+</div>
+
+<ul class="songs">
+  @for (track of visible(); track track.id) {
+    <li>
+      <label class="song" [class.on]="isSelected(track)">
+        <input type="checkbox" [checked]="isSelected(track)" (change)="toggle(track)" />
+        <span class="meta">
+          <span class="title">{{ track.title }}</span>
+          <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+        </span>
+      </label>
+    </li>
+  } @empty {
+    <li class="none">{{ query() ? 'No song matches.' : 'The library has no songs yet.' }}</li>
+  }
+</ul>
