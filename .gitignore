@@ -1,0 +1,19 @@
+# Third-party repos kept only as reading inspiration (they have their own git history)
+/harmony/
+/OpenCrate/
+/songmirror/
+
+# Downloaded audio (large, personal). Keep the folder itself.
+/downloadedMusic/*
+!/downloadedMusic/.gitkeep
+
+# Dependencies and build output
+node_modules/
+.venv/
+dist/
+.angular/
+__pycache__/
+
+# Local runtime files
+*.log
+.idea/

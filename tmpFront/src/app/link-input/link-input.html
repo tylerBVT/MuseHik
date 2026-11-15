@@ -1,0 +1,27 @@
+<section class="card">
+  <h1>Add music</h1>
+  <p class="help">
+    Paste a link from <strong>YouTube</strong> (single video) or <strong>Spotify</strong> or <strong>Deezer</strong> (track, album or playlist). The platform is detected from the link.
+  </p>
+
+  <label for="music-link">Music or playlist link</label>
+  <input
+    id="music-link"
+    type="text"
+    placeholder="https://www.youtube.com/watch?v=..."
+    autocomplete="off"
+    [value]="link()"
+    (input)="onInput($event)"
+  />
+
+  <button type="button" [disabled]="!canDownload()" (click)="download()">
+    {{ downloading() ? 'Downloading...' : 'Download' }}
+  </button>
+</section>
+
+@if (toast(); as t) {
+  <div class="toast" [class]="'toast ' + t.kind" role="status" aria-live="polite">
+    <span>{{ t.text }}</span>
+    <button type="button" class="close" aria-label="Dismiss" (click)="dismissToast()">&times;</button>
+  </div>
+}

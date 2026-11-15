@@ -1,0 +1,87 @@
+:host {
+  display: block;
+}
+
+.card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid #d0d5dd;
+  border-radius: 12px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.help {
+  margin: 0;
+  color: #475467;
+  line-height: 1.4;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 1px solid #98a2b3;
+  border-radius: 8px;
+}
+
+input:focus {
+  outline: 2px solid #7f56d9;
+  outline-offset: 1px;
+}
+
+button {
+  padding: 10px 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: #7f56d9;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #d0d5dd;
+  color: #667085;
+  cursor: not-allowed;
+}
+
+.toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.25);
+  word-break: break-word;
+}
+
+.toast.info { background: #175cd3; }
+.toast.success { background: #067647; }
+.toast.error { background: #b42318; }
+
+.toast .close {
+  padding: 0 6px;
+  font-size: 1.25rem;
+  line-height: 1;
+  background: transparent;
+  color: inherit;
+}
