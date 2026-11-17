@@ -27,8 +27,8 @@ YouTube links are the easy case: step 2 isn't needed, the link already is the so
 Caveat: audio quality is that of YouTube (lossy), and matches can pick the wrong recording.
 
 ## Status (2026-11-15): downloader + library + player, all working
-Stack: **Angular** front end (`tmpFront/`), **Node** server with no framework (`tmpBack/`), **SQLite** library index (Node built-in `node:sqlite`),
-yt-dlp + ffmpeg in `tmpBack/.venv`. Only npm dependency of the server: `music-metadata` (reads tags/covers).
+Stack: **Angular** front end (`frontend/`), **Node** server with no framework (`backend/`), **SQLite** library index (Node built-in `node:sqlite`),
+yt-dlp + ffmpeg in `backend/.venv`. Only npm dependency of the server: `music-metadata` (reads tags/covers).
 
 ### What was borrowed from the three reference apps
 | Idea | From |
@@ -41,19 +41,39 @@ yt-dlp + ffmpeg in `tmpBack/.venv`. Only npm dependency of the server: `music-me
 | Spotify = metadata only, audio matched on YouTube | OpenCrate / spotDL |
 None of the three has a player (Harmony delegates to Navidrome, SongMirror to Jellyfin); the player is our own.
 
-### Layout of `tmpBack/`
+### Repository layout (by module: musicDownloader, musicPlayer, instrumentalSeparator)
 ```
-services/{youtube,spotify,deezer}.mjs   one file per platform: parse link + read track list. index.mjs = registry/detect()
-engine.mjs      YouTube search (scored by title/artist/duration), yt-dlp MP3 download, ffmpeg tagging, config.json loading
-library.mjs     SQLite index: scan folder, findDuplicate(), list, cover art
-lib.mjs         pure helpers (scoring, trackKey, fileBase)
-server.mjs      jobs (POST /api/download, GET /api/jobs/:id, POST /api/jobs/:id/cancel) + library (GET /api/library,
-                /api/library/:id/stream with HTTP Range, /api/library/:id/cover, POST /api/library/rescan)
-ytdlp_launcher.py   yt-dlp with a per-process DNS-over-HTTPS fallback (see "YouTube block" below)
-config.json     musicDir (git-ignored; template config.example.json). Priority: MUSIC_DIR env > config.json > ../downloadedMusic
-migrate-flat.mjs   one-off: flatten old playlist folders / strip "NN - " prefixes (dry run unless --apply). Already applied.
-tests           node --test lib.test.mjs (12 unit tests); e2e.mjs (3 platforms), e2e-stop.mjs (Stop button), e2e-playlists.mjs,
-                demo-ui.mjs <link> (visible Chrome pastes+downloads), ui-check.mjs (13 player checks in real Chrome), cdp.mjs helper
+frontend/                       Angular app (one app, one router, one player bar)
+  src/app/core/                 api, library.service, nav, theme (shared by every feature)
+  src/app/shared/               page-header
+  src/app/home/, settings/      home page, settings page
+  src/app/features/
+    musicDownloader/            link-input, download-page
+    musicPlayer/                player-bar, library-list, pages (tracks, playlist, playlist-editor), player/queue/playlist services
+    instrumentalSeparator/      (empty for now)
+backend/                        Node server, one package.json; config.json, .venv and data/ live here (git-ignored)
+  server.mjs      CORS + asks each module's routes.mjs in turn; scans the library at start
+  core/
+    config.mjs    config.json loading, music folder, data/, Python + ffmpeg paths. Priority: MUSIC_DIR env > config.json > ../downloadedMusic
+    library.mjs   the SQLite database + track index: scan folder, findDuplicate(), list, cover art
+    lib.mjs       pure helpers (scoring, trackKey, fileBase)
+    http.mjs      readJson()
+  modules/        each one exports handle(req, ctx) from routes.mjs
+    musicDownloader/
+      routes.mjs          POST /api/download, GET /api/jobs/:id, POST /api/jobs/:id/cancel
+      jobs.mjs            background jobs: resolve link, skip known songs, 3 downloads in parallel, Stop + cleanup
+      services/{youtube,spotify,deezer}.mjs   one file per platform: parse link + read track list. index.mjs = registry/detect()
+      engine.mjs          YouTube search (scored by title/artist/duration), yt-dlp MP3 download, ffmpeg tagging
+      ytdlp_launcher.py   yt-dlp with a per-process DNS-over-HTTPS fallback (see "YouTube block" below)
+      migrate-flat.mjs    one-off: flatten old playlist folders / strip "NN - " prefixes (dry run unless --apply). Already applied.
+    musicPlayer/
+      routes.mjs          GET /api/library, POST /api/library/rescan, /api/library/:id/stream (HTTP Range), /api/library/:id/cover,
+                          GET/POST /api/playlists, GET/PUT/DELETE /api/playlists/:id
+      playlists.mjs       playlist tables + CRUD (in the shared database)
+    instrumentalSeparator/  (empty for now; will be Python)
+  tests/          npm test (= node --test tests/); e2e.mjs (3 platforms), e2e-stop.mjs (Stop button), e2e-playlists.mjs,
+                  demo-ui.mjs <link> (visible Chrome pastes+downloads), ui-check.mjs / ui-pages.mjs (real Chrome), cdp.mjs helper
+openSourceProjects/             cloned third-party repos, read-only inspiration (git-ignored)
 ```
 ### Done and verified
 - [x] Download from YouTube (video + playlist), Spotify (track/album/playlist, embed limit ~50-100), Deezer (full playlists). Link platform is auto-detected.

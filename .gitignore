@@ -1,7 +1,5 @@
 # Third-party repos kept only as reading inspiration (they have their own git history)
-/harmony/
-/OpenCrate/
-/songmirror/
+/openSourceProjects/
 
 # Downloaded audio (large, personal). Keep the folder itself.
 /downloadedMusic/*
@@ -18,11 +16,8 @@ __pycache__/
 *.log
 .idea/
 
-# Machine-specific settings (copy tmpBack/config.example.json to tmpBack/config.json)
-tmpBack/config.json
+# Machine-specific settings (copy backend/config.example.json to backend/config.json)
+backend/config.json
 
 # Local library index
-tmpBack/data/
-
-# Third-party player code kept only for reading/inspiration
-/reference/
+backend/data/

@@ -31,7 +31,7 @@ There is **no playback code to copy**. What was found and is reused as UI/archit
 | Durable state: remember things across restarts | Harmony (SQLite, durable jobs) | Remembering volume / shuffle / repeat / last song (P-7) |
 | Player behaviours (auto-next, shuffle, repeat, mini → full screen) | **Deezer / Spotify conventions** (owner's reference) | P-2 to P-5 |
 
-### Open-source players cloned for reference (in `reference/`, git-ignored, read-only)
+### Open-source players cloned for reference (in `openSourceProjects/reference/`, git-ignored, read-only)
 
 Cloned on 2026-11-15 because the three downloader apps have no player.
 
@@ -62,7 +62,7 @@ Android background playback, dark mode.
 ### P-0.1 Library list with covers and text search
 Shows every indexed song (cover, title, artist, album, length); typing filters by title/artist/album.
 - **Status:** Done
-- **Automated tests:** ✅ `tmpBack/ui-check.mjs` › "library lists all songs from the server", "search narrows the list"
+- **Automated tests:** ✅ `backend/tests/ui-check.mjs` › "library lists all songs from the server", "search narrows the list"
 - **Manually tested:** NO
 
 ### P-0.2 Click a song to play it; basic controls
