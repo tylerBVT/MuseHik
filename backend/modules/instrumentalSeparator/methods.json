@@ -1,0 +1,34 @@
+[
+  {
+    "id": "fast",
+    "name": "Fast",
+    "summary": "One top model, one pass.",
+    "description": "BS-RoFormer Resurrection Inst, the strongest single small instrumental model (SDR ~17.25 on the community leaderboard). One pass over the song. Already very clean; the quickest way to an instrumental.",
+    "models": ["resurrection_inst"],
+    "steps": [{ "model": "resurrection_inst", "passes": 1, "overlap": 2 }]
+  },
+  {
+    "id": "best",
+    "name": "Best quality",
+    "summary": "Three top models, each run three times, averaged.",
+    "description": "Three of the best instrumental models (Resurrection Inst, becruily Inst, Gabox FV7z). Each one runs three times: normal, left/right swapped, and polarity flipped (ZFTurbo's test-time augmentation). The nine results are averaged (UVR's Average ensemble): each model's random mistakes partly cancel out. Slowest, cleanest.",
+    "models": ["resurrection_inst", "becruily_inst", "fv7z_inst"],
+    "steps": [
+      { "model": "resurrection_inst", "passes": 3, "overlap": 2 },
+      { "model": "becruily_inst", "passes": 3, "overlap": 2 },
+      { "model": "fv7z_inst", "passes": 3, "overlap": 2 }
+    ],
+    "combine": "average"
+  },
+  {
+    "id": "backing",
+    "name": "Keep backing vocals",
+    "summary": "Removes the lead voice only; keeps the hook's backing voices and ad-libs.",
+    "description": "karaoke-gen's two-step method. 1) Resurrection Inst makes a clean instrumental (three passes). 2) The voice it removed (song minus instrumental) goes through a karaoke model that splits lead from backing vocals. 3) The backing vocals are mixed back into the instrumental.",
+    "models": ["resurrection_inst", "karaoke_aufr33"],
+    "steps": [
+      { "model": "resurrection_inst", "passes": 3, "overlap": 2 },
+      { "model": "karaoke_aufr33", "passes": 1, "overlap": 2, "input": "vocals" }
+    ]
+  }
+]

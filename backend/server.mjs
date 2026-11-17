@@ -1,6 +1,7 @@
 // Dev-only local server. Each module (modules/*/routes.mjs) answers its own part of the /api.
 //   musicDownloader: link -> background job -> audio files in the flat music folder
 //   musicPlayer:     library list, audio stream, cover art, playlists
+//   instrumentalSeparator: library song -> instrumental MP3 (Python + GPU job, one at a time)
 // Anything outside /api is the built Angular app (core/static.mjs).
 import http from 'node:http';
 import { existsSync } from 'node:fs';
@@ -10,13 +11,14 @@ import { scanLibrary } from './core/library.mjs';
 import { serveStatic } from './core/static.mjs';
 import * as musicDownloader from './modules/musicDownloader/routes.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
+import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 
 const port = Number(process.env.PORT || 3000);
 // 4200 = Angular dev server (ng serve); 3000 = the built app served by this server (MuseHik.bat).
 const allowedOrigins = new Set([
   'http://localhost:4200', 'http://127.0.0.1:4200', `http://localhost:${port}`, `http://127.0.0.1:${port}`,
 ]);
-const modules = [musicDownloader, musicPlayer];
+const modules = [musicDownloader, musicPlayer, instrumentalSeparator];
 
 export const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;

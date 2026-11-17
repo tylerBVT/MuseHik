@@ -1,0 +1,9 @@
+# Python packages of the separator (install PyTorch first, from the CUDA 12.8 index; see README.md).
+# Pins come from python-audio-separator's pyproject.toml: engine/roformer/rotary.py reads rotary-embedding-torch
+# internals that changed after 0.6.x. With 0.9.x the models load fine but separate almost nothing (bug seen 2026-11-17).
+rotary-embedding-torch>=0.6.1,<0.7.0
+beartype>=0.18.5,<0.19.0
+einops>=0.7
+pyyaml
+numpy
+packaging

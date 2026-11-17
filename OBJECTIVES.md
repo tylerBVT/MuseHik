@@ -1,6 +1,48 @@
 # MuseHik – Objectives & Findings
 
-Living file so context isn't lost. Complements `README.md` (music player architecture).
+Living file so context isn't lost. Complements `README.md` (overview + status table).
+
+## Vision and next steps
+Source of truth: the whiteboard **"Studio Rap FR — carte des services"**: https://claude.ai/artifact/J1x1VAdYquncSbndiRqqEP
+(written in French; translated below on 2026-11-17. If the board changes, update this section.)
+
+**The idea in one sentence:** a song goes in, and its instrumental and your own lyrics come out.
+
+**The path of a song** (each step feeds the next):
+1. **Source**: a YouTube, Deezer or Spotify link.
+2. **Downloader + Player**: get the audio and play it. *Done.*
+3. **Separation**: split the song into vocals and instrumental. *In progress.*
+4. **Lyrics**: get the song's lyrics, synchronised line by line with the audio.
+5. **Analysis**: find the tempo (BPM), the beats and the bars.
+6. **Studio**: karaoke + a writing notebook + a rhyme finder. This is what sets the project apart from any other player.
+
+### Short term: an MVP you actually enjoy using
+- **Downloader** (done): fetch the audio from YouTube / Deezer / Spotify (yt-dlp; Spotify and Deezer give metadata only, the audio is matched on YouTube).
+- **Player** (partly done): play songs, and switch between the **original and the instrumental only**.
+  The board marks this as done, but the original/instrumental switch is **not built yet**; it needs the separator first.
+- **Official instrumental**: before using AI, look for a real "(Instrumental)" release of the song on Spotify, Deezer or MusicBrainz. An official instrumental always beats a separated one.
+- **AI separation**: when no official instrumental exists, separate the song with Demucs / RoFormer models, producing the instrumental and the vocals as WAV. *Current work (see "Instrumental separator" below).*
+- **Lyrics**: download synchronised lyrics (LRC format) from LRCLIB.
+- **Karaoke**: scroll the lyrics in time with the music.
+- **Local library** (done): SQLite + audio files; everything stays on your own machine.
+
+### Medium term: what makes it unique
+- **Lyrics alignment**: when LRCLIB has nothing, use WhisperX on the isolated vocals to find the words and their timing.
+- **Music analysis**: BPM, beats, bars and musical key (librosa, Essentia).
+- **Writing notebook**: write, tag and organise your own lyrics.
+- **French phonetic engine**: turn text into phonemes (espeak-ng, the Lexique 3 database), so rhymes are found from sounds, not spelling.
+- **Rhyme finder** (key feature): rhymes, assonances and multisyllabic rhymes, searched across your whole collection of texts.
+- **Search by theme** (key feature): find your texts about a subject with embeddings + sqlite-vec. It only filters and finds; it never writes text for you.
+- **Training mode** (key feature): your text laid out bar by bar on the instrumental, to practise your placement.
+
+### Long term: the product
+- **Voice recording**: rap over the instrumental and export a demo.
+- **Flow score**: measure whether your syllables land on the beats.
+- **Type-beat catalogue**: search beats and save favourites by BPM and mood.
+- **GPU workers**: a job queue (Redis + Celery) to separate many songs at once.
+- **Cloud and accounts**: Postgres + object storage, sync across devices.
+- **Mobile app**: notebook + karaoke in your pocket.
+- **Licences and business**: leases, rights, monetisation. Much later.
 
 ## Decisions so far
 - Stack direction: Angular + Tauri 2 (Windows + Android). Windows only on desktop.
@@ -50,7 +92,7 @@ frontend/                       Angular app (one app, one router, one player bar
   src/app/features/
     musicDownloader/            link-input, download-page
     musicPlayer/                player-bar, library-list, pages (tracks, playlist, playlist-editor), player/queue/playlist services
-    instrumentalSeparator/      (empty for now)
+    instrumentalSeparator/      separator-page (pick a song + a method, progress, listen/compare/download), separator.service
 backend/                        Node server, one package.json; config.json, .venv and data/ live here (git-ignored)
   server.mjs      CORS + asks each module's routes.mjs in turn; scans the library at start
   core/
@@ -70,10 +112,18 @@ backend/                        Node server, one package.json; config.json, .ven
       routes.mjs          GET /api/library, POST /api/library/rescan, /api/library/:id/stream (HTTP Range), /api/library/:id/cover,
                           GET/POST /api/playlists, GET/PUT/DELETE /api/playlists/:id
       playlists.mjs       playlist tables + CRUD (in the shared database)
-    instrumentalSeparator/  (empty for now; will be Python)
-  tests/          npm test (= node --test tests/); e2e.mjs (3 platforms), e2e-stop.mjs (Stop button), e2e-playlists.mjs,
+    instrumentalSeparator/
+      routes.mjs, jobs.mjs    /api/separator/*: methods, jobs (one at a time on the GPU), results (play/download/delete)
+      separate.py, methods.json, engine/   Python engine (code copied from the open-source repos, see its NOTICE.md)
+  tests/          npm test (= node --test tests/); e2e.mjs (3 platforms), e2e-stop.mjs (Stop button), e2e-playlists.mjs, ui-separator.mjs,
                   demo-ui.mjs <link> (visible Chrome pastes+downloads), ui-check.mjs / ui-pages.mjs (real Chrome), cdp.mjs helper
 openSourceProjects/             cloned third-party repos, read-only inspiration (git-ignored)
+
+Outside the project (not synced by OneDrive), C:/Users/tyler/MuseHikData/ = config heavyDir:
+  separator-venv/                 Python 3.13 + PyTorch CUDA 12.8 for the separator (RTX 5060 needs cu128)
+  models/                         separation model files (downloaded on first use)
+  openSourceProjects/instrumentalSeparator/   python-audio-separator, Music-Source-Separation-Training, demucs,
+                                  ultimatevocalremovergui, karaoke-gen, sigsep-mus-eval (read-only study)
 ```
 ### Done and verified
 - [x] Download from YouTube (video + playlist), Spotify (track/album/playlist, embed limit ~50-100), Deezer (full playlists). Link platform is auto-detected.
@@ -94,6 +144,38 @@ full-screen player, shuffle, repeat, remembered settings, automated test plan, m
 - [ ] Spotify full playlists (embed caps at ~50-100; needs a token like OpenCrate/Harmony).
 - [ ] Spotify "Dance Party" and YouTube "Teen Party Music" playlist runs (only Deezer "phil harmonie" was tested end to end).
 - [ ] Tauri shell (Windows) with yt-dlp/ffmpeg as sidecars; Android build with native background playback (see README).
+
+## Instrumental separator (started 2026-11-17)
+Goal: the best instrumental possible from any song. Code and docs: `backend/modules/instrumentalSeparator/` (README, NOTICE).
+
+### What the open-source projects do (study, 2026-11-17)
+All of them: song -> spectrogram -> an AI model marks what is voice -> back to sound, on overlapping chunks.
+The instrumental is either the model's direct output or song - vocals. Best model family today: **RoFormer**
+(BS-RoFormer, Mel-Band RoFormer); MDX-Net, Demucs and VR are older.
+
+| Project | What it does | What we took |
+|---|---|---|
+| python-audio-separator | One library for all model types; downloads models; ready-made ensemble presets | RoFormer model code, model download mirrors, model loading |
+| ZFTurbo Music-Source-Separation-Training | The toolkit most top RoFormer models are trained with | Chunked overlap-add inference with fades; test-time augmentation (3 passes) |
+| Ultimate Vocal Remover GUI | The popular desktop app | Ensemble methods: Average, Max Spec (fuller), Min Spec (cleaner) |
+| karaoke-gen | Karaoke video maker built on audio-separator | Two instrumentals: clean, and with backing vocals added back |
+| demucs | Facebook's model; random time-shift averaging | Nothing for now (behind RoFormer on vocals vs instrumental) |
+| sigsep-mus-eval (museval) | SDR scoring against a true instrumental | Not used yet: needs songs with an official instrumental |
+
+### The three methods (built, 2026-11-17)
+| Method | How | Time, 2:50 song, RTX 5060 Laptop |
+|---|---|---|
+| Fast | Resurrection Inst, 1 pass | 47 s |
+| Best quality | Resurrection + becruily + FV7z, 3 TTA passes each, averaged | 4 min 11 s (was 8 min 41 s with overlap 4; lowered to 2) |
+| Keep backing vocals | Resurrection (3 passes); removed voice -> karaoke model -> backing added back | 2 min 25 s |
+
+Checked on Hugo TSR "Des voix résonnent": same length as the original, tags + cover kept, the removed part follows
+the voice (falls to silence when he stops). **Not yet judged by ear.**
+
+### Next
+- [ ] Listen and compare the three on several songs (owner).
+- [ ] Score with an official instrumental (SDR, museval) to tune: which models, Average vs Max/Min Spec, overlap.
+- [ ] Player switch original / instrumental (needs a result to exist; results are in MuseHikData/instrumentals).
 
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.

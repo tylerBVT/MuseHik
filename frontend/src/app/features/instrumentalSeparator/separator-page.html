@@ -1,0 +1,134 @@
+<app-page-header title="Instrumental separator" />
+
+<p class="intro">Give one of your songs and we'll extract the instrumental.</p>
+
+@if (!separator.available()) {
+  <p class="notice" role="alert">
+    The separator is not installed on this computer (its Python environment is missing). See
+    <code>backend/modules/instrumentalSeparator/README.md</code>.
+  </p>
+}
+
+<div class="chosen">
+  @if (selected(); as track) {
+    <img class="cover" [src]="coverUrl(track)" alt="" />
+    <span class="meta">
+      <span class="title">{{ track.title }}</span>
+      <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+    </span>
+  } @else {
+    <span class="placeholder">No song selected yet. Pick one below.</span>
+  }
+</div>
+
+<fieldset class="methods">
+  <legend>Method</legend>
+  @for (m of separator.methods(); track m.id) {
+    <label class="method" [class.on]="method() === m.id">
+      <input type="radio" name="separator-method" [value]="m.id" [checked]="method() === m.id" (change)="method.set(m.id)" />
+      <span class="method-text">
+        <span class="method-name">
+          {{ m.name }}
+          @if (selected() && hasResult(m.id)) {
+            <span class="made" title="Already made for this song">made</span>
+          }
+        </span>
+        <span class="method-summary">{{ m.summary }}</span>
+        <span class="method-description">{{ m.description }}</span>
+      </span>
+    </label>
+  }
+</fieldset>
+
+<div class="actions">
+  <button type="button" class="go" [disabled]="!canStart()" (click)="getInstrumental()">
+    {{ selected() && hasResult(method()) ? 'Make it again' : 'Get instrumental' }}
+  </button>
+  @if (!selected()) {
+    <span class="hint">Pick a song first.</span>
+  }
+</div>
+
+@if (job(); as j) {
+  <div class="progress" role="status" aria-live="polite">
+    <div class="progress-head">
+      <span class="stage">{{ methodName(j.method) }}: {{ j.stage }}</span>
+      <span class="percent">{{ (j.progress * 100).toFixed(0) }}%</span>
+      <button type="button" class="stop" (click)="stop()">Stop</button>
+    </div>
+    <div class="bar"><div class="fill" [style.width.%]="j.progress * 100"></div></div>
+  </div>
+}
+
+@if (failure(); as f) {
+  <p class="error" role="alert">{{ methodName(f.method) }} failed: {{ f.error }}</p>
+}
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@if (selected(); as track) {
+  @if (results().length) {
+    <section class="results" aria-label="Results">
+      <h2>Listen and compare</h2>
+      <div class="result">
+        <span class="result-name">Original</span>
+        <audio controls preload="none" [src]="streamUrl(track)" (play)="onPreviewPlay($event)"></audio>
+      </div>
+      @for (r of results(); track r.method) {
+        <div class="result">
+          <span class="result-name">{{ methodName(r.method) }}</span>
+          <audio controls preload="none" [src]="separator.audioUrl(track, r.method, r.createdAt)" (play)="onPreviewPlay($event)"></audio>
+          <span class="result-actions">
+            <a class="link" [href]="separator.downloadUrl(track, r.method)" download>Download</a>
+            <button type="button" class="link" (click)="remove(r.method)">Delete</button>
+          </span>
+        </div>
+      }
+    </section>
+  }
+}
+
+<h2 class="pick-title">Pick a song</h2>
+<div class="pick">
+  <select class="scope" aria-label="Search in" [value]="scope()" (change)="setScope($any($event.target).value)">
+    <option value="all">All songs</option>
+    @for (playlist of playlists(); track playlist.id) {
+      <option [value]="playlist.id">{{ playlist.name }}</option>
+    }
+  </select>
+  <input
+    type="search"
+    class="search"
+    placeholder="Search title, artist or album"
+    aria-label="Search songs"
+    autocomplete="off"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+</div>
+
+<ul class="songs" aria-label="Songs">
+  @for (track of visible(); track track.id) {
+    <li>
+      <label class="song" [class.on]="selected()?.id === track.id">
+        <input type="radio" name="separator-song" [checked]="selected()?.id === track.id" (click)="select(track)" />
+        <span class="meta">
+          <span class="title">{{ track.title }}</span>
+          <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+        </span>
+        <span class="duration">{{ formatTime(track.duration) }}</span>
+      </label>
+    </li>
+  } @empty {
+    <li class="none">
+      @if (scope() !== 'all' && source().length === 0) {
+        This playlist has no songs.
+      } @else if (query()) {
+        No song matches.
+      } @else {
+        The library has no songs yet.
+      }
+    </li>
+  }
+</ul>

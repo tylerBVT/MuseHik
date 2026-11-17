@@ -5,6 +5,7 @@ export type View =
   | { page: 'settings' }
   | { page: 'tracks' }
   | { page: 'download' }
+  | { page: 'separate' }
   | { page: 'create' }
   | { page: 'playlist'; id: number }
   | { page: 'edit'; id: number };

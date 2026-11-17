@@ -5,6 +5,7 @@ import { PlaylistService } from './features/musicPlayer/playlist.service';
 import { ThemeService } from './core/theme.service';
 import { Home } from './home/home';
 import { DownloadPage } from './features/musicDownloader/download-page';
+import { SeparatorPage } from './features/instrumentalSeparator/separator-page';
 import { PlaylistEditor } from './features/musicPlayer/pages/playlist-editor';
 import { PlaylistPage } from './features/musicPlayer/pages/playlist-page';
 import { TracksPage } from './features/musicPlayer/pages/tracks-page';
@@ -12,7 +13,7 @@ import { PlayerBar } from './features/musicPlayer/player-bar/player-bar';
 import { Settings } from './settings/settings';
 
 @Component({
-  imports: [Home, TracksPage, DownloadPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar],
+  imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',
