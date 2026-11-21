@@ -21,6 +21,7 @@ Ideas, from simple to heavier:
 
 Weakness to fix first (before any sync or move to another device):
 - Playlists currently point at songs by the library's **numeric id**. If a file is deleted and downloaded again, it gets a new id and silently drops out of the playlist; ids also differ between laptop, LWS and phone.
+- **Done 2026-11-21** (shared playlists): playlists now store songs by identity.
 - Fix: reference songs by a **stable key** (ISRC, else source id like `youtube:xxx`, else cleaned artist+title+duration, the same key the duplicate check already uses). Then playlists survive rescans and can move between devices.
 - Add **export / import of user data as one JSON file** (backup, and the easiest "sync" for now).
 

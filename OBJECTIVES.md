@@ -188,5 +188,15 @@ Design: `docs/superpowers/specs/2026-11-21-cloud-design.md`. Module: `backend/mo
 - Advice: give MuseHik its own LWS FTP account restricted to `/music`, not the main hosting login.
 - [ ] Try it against the real LWS hosting (FTPS support, missing-file reply codes, speed).
 
+### Shared playlists (built 2026-11-21)
+Design: `docs/superpowers/specs/2026-11-21-shared-playlists-design.md`.
+- One kind of playlist with a **Shared** switch. Shared ones live in `music/playlists.json` too; the side changed last
+  wins; unsharing or deleting travels as `{ uid, deleted: true }`. Each person edits only their own (not enforced).
+- Playlists store songs **by identity** (title, artist, album, length, ISRC), matched when read: library, then
+  cloud, else greyed "not available". Fixes the roadmap's "playlists point at library numbers" weakness.
+- Sharing uploads the playlist's songs the cloud lacks; later additions upload at the next sync (start, every
+  5 min, home page open, 2 s after a change). The editor also lists cloud songs not on this laptop.
+- Settings > Cloud > Your name: shown on shared playlists ("from Tyler").
+
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.
