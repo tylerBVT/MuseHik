@@ -139,3 +139,29 @@ test('share route returns the playlist and syncs', async () => {
   assert.equal(sync.skipped, true, 'a sync right after another is skipped unless forced');
   await uploadsDone();
 });
+
+test('the other laptop unsharing or deleting my playlist keeps it here, unshared', async () => {
+  const mine = P.createPlaylist('Mine, kept', [a.id]);
+  P.setShared(mine.id, true, 'Tyler');
+  await syncPlaylists({ force: true });
+  writeCloudPlaylists(cloudPlaylists().map(p => (p.uid === mine.uid ? { uid: mine.uid, deleted: true, updatedAt: Date.now() + 10000 } : p)));
+  await syncPlaylists({ force: true });
+  const here = byName('Mine, kept');
+  assert.ok(here, 'my own playlist is never deleted from my laptop by the other one');
+  assert.equal(here.shared, false);
+  await syncPlaylists({ force: true });
+  assert.equal(cloudPlaylists().find(p => p.uid === mine.uid).deleted, true, 'and it is not pushed back');
+  await uploadsDone();
+});
+
+test('a playlist deleted here comes back if its owner edits it afterwards', async () => {
+  const song = { title: a.title, artist: a.artist, album: a.album, duration: a.duration, isrc: null };
+  writeCloudPlaylists([...cloudPlaylists(), { uid: 'u-late', name: 'Late edit', owner: 'Mum', updatedAt: Date.now(), songs: [song] }]);
+  await syncPlaylists({ force: true });
+  P.deletePlaylist(byName('Late edit').id);
+  // Mum edits it before this laptop had a chance to tell the cloud.
+  writeCloudPlaylists(cloudPlaylists().map(p => (p.uid === 'u-late' ? { ...p, name: 'Late edit 2', updatedAt: Date.now() + 20000 } : p)));
+  await syncPlaylists({ force: true });
+  assert.ok(byName('Late edit 2'), 'the newer edit wins over the older delete');
+  assert.deepEqual(P.tombstones().filter(t => t.uid === 'u-late'), []);
+});

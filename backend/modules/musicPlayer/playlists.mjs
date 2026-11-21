@@ -36,6 +36,8 @@ if (!columns.has('uid')) db.exec('ALTER TABLE playlists ADD COLUMN uid TEXT');
 if (!columns.has('shared')) db.exec('ALTER TABLE playlists ADD COLUMN shared INTEGER NOT NULL DEFAULT 0');
 if (!columns.has('owner')) db.exec("ALTER TABLE playlists ADD COLUMN owner TEXT NOT NULL DEFAULT ''");
 if (!columns.has('updated_at')) db.exec('ALTER TABLE playlists ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0');
+// 1 = received from the other laptop (only those may be deleted by it); 0 = made here.
+if (!columns.has('from_cloud')) db.exec('ALTER TABLE playlists ADD COLUMN from_cloud INTEGER NOT NULL DEFAULT 0');
 for (const { id } of db.prepare('SELECT id FROM playlists WHERE uid IS NULL').all()) {
   db.prepare('UPDATE playlists SET uid = ?, updated_at = ? WHERE id = ?').run(randomUUID(), Date.now(), id);
 }
@@ -57,7 +59,9 @@ const pq = {
     FROM playlists p LEFT JOIN playlist_songs s ON s.playlist_id = p.id GROUP BY p.id ORDER BY p.name COLLATE NOCASE`),
   one: db.prepare('SELECT id, uid, name, shared, owner, updated_at FROM playlists WHERE id = ?'),
   byUid: db.prepare('SELECT id, uid, name, shared, owner, updated_at FROM playlists WHERE uid = ?'),
-  rows: db.prepare('SELECT id, uid, name, shared, owner, updated_at FROM playlists'),
+  rows: db.prepare('SELECT id, uid, name, shared, owner, updated_at, from_cloud FROM playlists'),
+  insertFromCloud: db.prepare('INSERT INTO playlists (name, uid, shared, owner, updated_at, from_cloud) VALUES (?, ?, 1, ?, ?, 1)'),
+  unshareByUid: db.prepare('UPDATE playlists SET shared = 0, updated_at = ? WHERE uid = ?'),
   songs: db.prepare('SELECT title, artist, album, duration, isrc, key FROM playlist_songs WHERE playlist_id = ? ORDER BY position'),
   insert: db.prepare('INSERT INTO playlists (name, uid, shared, owner, updated_at) VALUES (?, ?, ?, ?, ?)'),
   rename: db.prepare('UPDATE playlists SET name = ?, updated_at = ? WHERE id = ?'),
@@ -196,7 +200,7 @@ export function setShared(id, shared, owner = '') {
 // ---- For the cloud sync -------------------------------------------------------------------------------------
 
 /** Every playlist with its songs as identities (no resolution). */
-export const playlistRows = () => pq.rows.all().map(row => ({ ...summary(row), songs: pq.songs.all(row.id) }));
+export const playlistRows = () => pq.rows.all().map(row => ({ ...summary(row), fromCloud: Boolean(row.from_cloud), songs: pq.songs.all(row.id) }));
 export const playlistByUid = uid => {
   const row = pq.byUid.get(uid);
   return row && { ...summary(row), songs: pq.songs.all(row.id) };
@@ -209,12 +213,15 @@ export function upsertFromCloud({ uid, name, owner, updatedAt, songs }) {
   return inTransaction(() => {
     let row = pq.byUid.get(uid);
     if (row) pq.fromCloud.run(name, owner || '', updatedAt, row.id);
-    else row = { id: Number(pq.insert.run(name, uid, 1, owner || '', updatedAt).lastInsertRowid) };
+    else row = { id: Number(pq.insertFromCloud.run(name, uid, owner || '', updatedAt).lastInsertRowid) };
     pq.clear.run(row.id);
     songs.map(identity).forEach((s, position) => pq.addSong.run(row.id, position, s.title, s.artist, s.album, s.duration, s.isrc, s.key));
     return row.id;
   });
 }
+
+/** A playlist made here that the other laptop unshared or deleted: it stays here, unshared. No change event. */
+export const unshareByUid = (uid, updatedAt) => pq.unshareByUid.run(updatedAt, uid);
 
 /** Removes a playlist because the cloud says it was deleted or unshared. No tombstone, no change event. */
 export function removeByUid(uid) {

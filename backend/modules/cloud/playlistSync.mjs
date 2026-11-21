@@ -7,7 +7,7 @@ import { hostname } from 'node:os';
 import { findDuplicate } from '../../core/library.mjs';
 import { sameIdentity } from '../../core/lib.mjs';
 import {
-  clearTombstone, onSharedChange, playlistRows, removeByUid, tombstones, upsertFromCloud,
+  clearTombstone, onSharedChange, playlistRows, removeByUid, tombstones, unshareByUid, upsertFromCloud,
 } from '../musicPlayer/playlists.mjs';
 import { isConfigured, loadSettings } from './settings.mjs';
 import { withCloud } from './store.mjs';
@@ -40,7 +40,9 @@ async function reconcile(settings) {
         if (local.shared) { put(forCloud(local, settings)); counts.pushed++; }
       } else if (entry.updatedAt > local.updatedAt) {
         if (!entry.deleted) { upsertFromCloud(entry); counts.pulled++; }
-        else if (local.shared) { removeByUid(local.uid); counts.removed++; }
+        // Only a playlist received from the other laptop is removed; one made here just stops being shared.
+        else if (local.shared && local.fromCloud) { removeByUid(local.uid); counts.removed++; }
+        else if (local.shared) unshareByUid(local.uid, entry.updatedAt);
       } else if (local.updatedAt > entry.updatedAt) {
         if (local.shared) { put(forCloud(local, settings)); counts.pushed++; }
         else if (!entry.deleted) put({ uid: local.uid, deleted: true, updatedAt: local.updatedAt }); // unshared here
@@ -51,10 +53,12 @@ async function reconcile(settings) {
     for (const entry of entries.values()) {
       if (localUids.has(entry.uid)) continue;
       const deletedAt = tombs.get(entry.uid);
-      if (deletedAt !== undefined) {
-        if (!entry.deleted && deletedAt >= entry.updatedAt) put({ uid: entry.uid, deleted: true, updatedAt: deletedAt });
-      } else if (!entry.deleted) {
-        upsertFromCloud(entry);
+      if (entry.deleted) continue;
+      if (deletedAt !== undefined && deletedAt >= entry.updatedAt) {
+        put({ uid: entry.uid, deleted: true, updatedAt: deletedAt }); // deleted here after the last edit
+      } else {
+        upsertFromCloud(entry); // new, or edited on the other laptop after it was deleted here: the edit wins
+        if (deletedAt !== undefined) clearTombstone(entry.uid);
         counts.pulled++;
       }
     }
