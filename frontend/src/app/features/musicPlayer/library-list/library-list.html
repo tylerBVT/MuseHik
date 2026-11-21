@@ -38,11 +38,13 @@
           type="button"
           class="row"
           [class.current]="player.current()?.id === track.id"
+          [class.unavailable]="track.unavailable"
+          [disabled]="track.unavailable"
           [attr.aria-label]="'Play ' + track.title + ' by ' + track.artist"
           (click)="play(track)"
         >
           <span class="art">
-            @if (noCover().has(track.id)) {
+            @if (track.unavailable || noCover().has(track.id)) {
               <span class="placeholder" aria-hidden="true">&#9835;</span>
             } @else {
               <img
@@ -64,6 +66,11 @@
               {{ track.artist || 'Unknown artist' }}
               @if (onLaptop()?.has(track.id)) {
                 <span class="badge">on this laptop</span>
+              }
+              @if (track.unavailable) {
+                <span class="badge off">not available</span>
+              } @else if (track.stream && !onLaptop()) {
+                <span class="badge">cloud</span>
               }
             </span>
           </span>

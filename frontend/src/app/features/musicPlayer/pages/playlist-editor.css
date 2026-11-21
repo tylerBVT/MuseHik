@@ -126,3 +126,18 @@ h2 {
   padding: 16px;
   color: var(--text-muted);
 }
+
+.tag {
+  margin-left: auto;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  color: var(--accent);
+  white-space: nowrap;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+
+.tag.off {
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}

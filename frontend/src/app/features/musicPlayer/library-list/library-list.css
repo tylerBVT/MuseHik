@@ -183,3 +183,13 @@ h2 {
   border: 1px solid var(--accent);
   border-radius: 999px;
 }
+
+.badge.off {
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+
+.row.unavailable {
+  opacity: 0.55;
+  cursor: default;
+}

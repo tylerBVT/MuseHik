@@ -133,6 +133,18 @@
         />
       </label>
       <label class="field">
+        <span class="label">Your name</span>
+        <input
+          type="text"
+          autocomplete="off"
+          maxlength="40"
+          [placeholder]="f.displayName"
+          [value]="f.name"
+          (input)="setCloud('name', $any($event.target).value)"
+        />
+        <span class="hint">Shown on the playlists you share.</span>
+      </label>
+      <label class="field">
         <span class="label">Folder</span>
         <input type="text" autocomplete="off" [value]="f.folder" (input)="setCloud('folder', $any($event.target).value)" />
       </label>

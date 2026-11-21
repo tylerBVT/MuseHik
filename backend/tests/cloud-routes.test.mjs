@@ -45,6 +45,7 @@ test('settings GET never returns the password', async () => {
   const { status, body } = await api('/settings');
   assert.equal(status, 200);
   assert.equal(body.hasPassword, true);
+  assert.ok(body.displayName, 'the name shown on shared playlists');
   assert.equal('password' in body, false);
   assert.equal(JSON.stringify(body).includes(ftp.settings.password), false);
   const saved = await api('/settings', { method: 'PUT', body: { monthlyLimitGB: 10 } });
@@ -73,6 +74,7 @@ test('upload then list then stream with Range 206', async () => {
   const song = list.body.songs.find(s => s.title === 'Route Artist - Route Song');
   assert.ok(song);
   assert.equal(song.onLaptop, false);
+  assert.equal(song.inLibrary, false);
   assert.equal(list.body.offline, false);
 
   const response = await fetch(`${base}/songs/${song.id}/stream`, { headers: { Range: 'bytes=0-99' } });

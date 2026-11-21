@@ -63,7 +63,12 @@
         </svg>
       </span>
       <span class="name">{{ playlist.name }}</span>
-      <span class="hint">{{ playlist.count }} {{ playlist.count === 1 ? 'song' : 'songs' }}</span>
+      <span class="hint">
+        {{ playlist.count }} {{ playlist.count === 1 ? 'song' : 'songs' }}
+        @if (sharing(playlist); as label) {
+          · <span class="shared">{{ label }}</span>
+        }
+      </span>
     </button>
   }
 </nav>

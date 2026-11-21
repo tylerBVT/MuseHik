@@ -17,7 +17,24 @@ export type Track = {
   stream?: string;
   cover?: string;
   prefetch?: string;
+  /** In a playlist, but neither on this laptop nor on the cloud: shown greyed, never played. */
+  unavailable?: boolean;
 };
+
+/** A cloud song as a player track. Negative ids never clash with library ids. */
+export function cloudTrack(song: { id: number; title: string; artist: string; album: string; duration: number }): Track {
+  const base = `${API}/cloud/songs/${song.id}`;
+  return {
+    id: -song.id,
+    title: song.title,
+    artist: song.artist,
+    album: song.album,
+    duration: song.duration,
+    stream: `${base}/stream`,
+    cover: `${base}/cover`,
+    prefetch: `${base}/prefetch`,
+  };
+}
 
 export const streamUrl = (track: Track) => track.stream ?? `${API}/library/${track.id}/stream`;
 export const coverUrl = (track: Track) => track.cover ?? `${API}/library/${track.id}/cover`;

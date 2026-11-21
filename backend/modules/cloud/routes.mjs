@@ -24,7 +24,12 @@ async function findSong(id) {
   return (await withCloud(c => c.index())).songs.find(s => s.id === id);
 }
 
-const withLaptopFlag = songs => songs.map(s => ({ ...s, onLaptop: Boolean(localSource(s)) }));
+const withLaptopFlag = songs => songs.map(s => {
+  const here = localSource(s);
+  return { ...s, onLaptop: Boolean(here), inLibrary: here?.from === 'library' };
+});
+/** Settings for the page: no password, plus the name shown on playlists this laptop shares. */
+const forPage = s => ({ ...publicSettings(s), displayName: ownerName(s) });
 
 /** Handles the request if it belongs to this module; returns true when it did. */
 export async function handle(req, { res, json, cors }) {
@@ -33,8 +38,8 @@ export async function handle(req, { res, json, cors }) {
   const method = req.method;
 
   if (url === '/api/cloud/settings') {
-    if (method === 'GET') json(200, publicSettings(loadSettings()));
-    else if (method === 'PUT') json(200, publicSettings(saveSettings(await readJson(req, 5000))));
+    if (method === 'GET') json(200, forPage(loadSettings()));
+    else if (method === 'PUT') json(200, forPage(saveSettings(await readJson(req, 5000))));
     else json(405, { error: 'Method not allowed' });
     return true;
   }

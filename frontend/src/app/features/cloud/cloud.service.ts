@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { API, Track } from '../../core/api';
+import { API, Track, cloudTrack } from '../../core/api';
 
 export type CloudSettings = {
   host: string;
@@ -11,6 +11,10 @@ export type CloudSettings = {
   cacheLimitGB: number;
   allowPlainFtp: boolean;
   hasPassword: boolean;
+  /** Shown on playlists you share. */
+  name: string;
+  /** `name`, or the computer's name when empty (read only). */
+  displayName: string;
 };
 
 /** GET /api/cloud/status: what the usage bars show. */
@@ -40,6 +44,8 @@ export type CloudSong = {
   addedAt: string;
   /** Plays without the network: the same song is in this laptop's library, or in the cloud cache. */
   onLaptop: boolean;
+  /** The same song is in this laptop's library. */
+  inLibrary: boolean;
 };
 
 export type FolderSong = { path: string; title: string; artist: string; album: string; duration: number; size: number };
@@ -84,17 +90,7 @@ export class CloudService {
 
   /** A cloud song as a player track. Negative ids never clash with library ids. */
   toTrack(song: CloudSong): Track {
-    const base = `${API}/cloud/songs/${song.id}`;
-    return {
-      id: -song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration,
-      stream: `${base}/stream`,
-      cover: `${base}/cover`,
-      prefetch: `${base}/prefetch`,
-    };
+    return cloudTrack(song);
   }
 
   deleteSong(id: number): Promise<unknown> {
@@ -104,7 +100,7 @@ export class CloudService {
   getSettings(): Promise<CloudSettings> {
     return this.call('GET', '/settings');
   }
-  saveSettings(patch: Partial<CloudSettings> & { password?: string }): Promise<CloudSettings> {
+  saveSettings(patch: Partial<Omit<CloudSettings, 'displayName'>> & { password?: string }): Promise<CloudSettings> {
     return this.call('PUT', '/settings', patch);
   }
   testConnection(): Promise<{ ok: boolean; secure?: boolean; error?: string }> {

@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { LibraryService } from '../core/library.service';
 import { NavService } from '../core/nav.service';
-import { PlaylistService } from '../features/musicPlayer/playlist.service';
+import { CloudService } from '../features/cloud/cloud.service';
+import { PlaylistService, PlaylistSummary } from '../features/musicPlayer/playlist.service';
 
 /** The main page: big icon tiles leading to every other page, including each playlist. */
 @Component({
@@ -12,5 +13,23 @@ import { PlaylistService } from '../features/musicPlayer/playlist.service';
 export class Home {
   protected readonly nav = inject(NavService);
   protected readonly library = inject(LibraryService);
-  protected readonly playlists = inject(PlaylistService).playlists;
+  private readonly playlistService = inject(PlaylistService);
+  protected readonly playlists = this.playlistService.playlists;
+  /** This laptop's name on shared playlists, to tell mine from the other laptop's. */
+  private readonly myName = signal<string | null>(null);
+
+  constructor() {
+    // Picks up playlists shared from the other laptop (the server skips it if it synced in the last 30 s).
+    void this.playlistService.sync();
+    inject(CloudService)
+      .getSettings()
+      .then((s) => this.myName.set(s.displayName))
+      .catch(() => {});
+  }
+
+  /** "Shared" on mine, "from Mum" on the other laptop's, nothing on private ones. */
+  protected sharing(playlist: PlaylistSummary): string {
+    if (!playlist.shared) return '';
+    return playlist.owner && this.myName() !== null && playlist.owner !== this.myName() ? `from ${playlist.owner}` : 'Shared';
+  }
 }

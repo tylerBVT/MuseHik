@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, input, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { NavService } from '../../../core/nav.service';
-import { Playlist, PlaylistService } from '../playlist.service';
+import { CloudService } from '../../cloud/cloud.service';
+import { Playlist, PlaylistService, toTracks } from '../playlist.service';
 import { LibraryList } from '../library-list/library-list';
 import { PageHeader } from '../../../shared/page-header';
 
-/** One playlist: its songs (click to play) plus Edit and Delete. */
+/** One playlist: its songs (click to play), Edit, Delete, and the Shared switch. */
 @Component({
   imports: [PageHeader, LibraryList],
   selector: 'app-playlist-page',
@@ -24,21 +25,83 @@ import { PageHeader } from '../../../shared/page-header';
     .action.danger {
       color: var(--danger);
     }
+    .action:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .share {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .switch {
+      position: relative;
+      width: 34px;
+      height: 20px;
+      border-radius: 10px;
+      background: var(--border-strong);
+      transition: background 0.2s;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--surface);
+      transition: transform 0.2s;
+    }
+    .share[aria-checked='true'] .switch {
+      background: var(--accent);
+    }
+    .share[aria-checked='true'] .switch::after {
+      transform: translateX(14px);
+    }
+    .status {
+      margin: 0 0 12px;
+      color: var(--text-muted);
+    }
+    .status.error {
+      color: var(--danger);
+    }
     .notice {
       color: var(--text-muted);
     }
   `,
   template: `
     <app-page-header [title]="playlist()?.name ?? 'Playlist'">
-      @if (playlist()) {
+      @if (playlist(); as current) {
+        <button
+          type="button"
+          class="action share"
+          role="switch"
+          [attr.aria-checked]="current.shared"
+          [disabled]="busy()"
+          (click)="toggleShared()"
+        >
+          <span class="switch" aria-hidden="true"></span> Shared
+        </button>
         <button type="button" class="action" (click)="nav.go({ page: 'edit', id: id() })">Edit</button>
         <button type="button" class="action danger" (click)="remove()">Delete</button>
       }
     </app-page-header>
     @if (playlist(); as current) {
+      @if (message(); as m) {
+        <p class="status" [class.error]="m.error" role="status">{{ m.text }}</p>
+      } @else if (current.shared) {
+        <p class="status">
+          @if (fromOther()) {
+            Shared by {{ current.owner }}.
+          } @else {
+            Shared: it is on the cloud and shows on the other laptop.
+          }
+        </p>
+      }
       <app-library-list
         heading="Songs"
-        [tracks]="current.tracks"
+        [tracks]="tracks()"
         emptyMessage="This playlist is empty. Press Edit to add songs."
       />
     } @else if (missing()) {
@@ -49,20 +112,56 @@ import { PageHeader } from '../../../shared/page-header';
 export class PlaylistPage implements OnInit {
   protected readonly nav = inject(NavService);
   private readonly playlists = inject(PlaylistService);
+  private readonly cloud = inject(CloudService);
 
   readonly id = input.required<number>();
   protected readonly playlist = signal<Playlist | null>(null);
   protected readonly missing = signal(false);
+  protected readonly busy = signal(false);
+  protected readonly message = signal<{ text: string; error: boolean } | null>(null);
+  private readonly myName = signal<string | null>(null);
+
+  protected readonly tracks = computed(() => toTracks(this.playlist()?.songs ?? []));
+  protected readonly fromOther = computed(() => {
+    const p = this.playlist();
+    return Boolean(p?.shared && p.owner && this.myName() !== null && p.owner !== this.myName());
+  });
 
   async ngOnInit(): Promise<void> {
     const found = await this.playlists.get(this.id());
     this.playlist.set(found);
     this.missing.set(!found);
+    this.cloud
+      .getSettings()
+      .then((s) => this.myName.set(s.displayName))
+      .catch(() => {});
+  }
+
+  protected async toggleShared(): Promise<void> {
+    const current = this.playlist();
+    if (!current) return;
+    this.busy.set(true);
+    this.message.set(null);
+    try {
+      const updated = await this.playlists.setShared(current.id, !current.shared);
+      this.playlist.set(updated);
+      this.message.set({
+        text: updated.shared
+          ? 'Shared. It shows on the other laptop; songs the cloud does not have yet are uploading in the background.'
+          : 'No longer shared. It stays here, and disappears from the other laptop at its next sync.',
+        error: false,
+      });
+    } catch (e) {
+      this.message.set({ text: (e as Error).message, error: true });
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected async remove(): Promise<void> {
     const current = this.playlist();
-    if (!current || !confirm(`Delete the playlist "${current.name}"? Your songs stay in the library.`)) return;
+    const note = current?.shared ? ' It is shared, so it also disappears from the other laptop.' : '';
+    if (!current || !confirm(`Delete the playlist "${current.name}"? Your songs stay in the library.${note}`)) return;
     await this.playlists.remove(current.id);
     this.nav.go({ page: 'home' }, { replace: true });
   }

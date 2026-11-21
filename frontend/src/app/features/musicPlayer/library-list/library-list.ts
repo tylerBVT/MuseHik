@@ -40,9 +40,10 @@ export class LibraryList {
   }
 
   protected play(track: Track): void {
+    if (track.unavailable) return;
     // Re-clicking the song that is playing toggles pause instead of restarting it.
     if (this.player.current()?.id === track.id) this.player.toggle();
-    else this.player.play(track, this.visible());
+    else this.player.play(track, this.visible().filter((t) => !t.unavailable));
   }
 
   protected coverFailed(track: Track): void {

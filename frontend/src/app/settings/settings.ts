@@ -71,7 +71,7 @@ export class Settings {
     this.cloudBusy.set(true);
     this.cloudResult.set(null);
     try {
-      const { hasPassword: _, ...fields } = form;
+      const { hasPassword: _, displayName: __, ...fields } = form;
       const saved = await this.cloud.saveSettings({ ...fields, password: this.cloudPassword() || undefined });
       this.cloudForm.set(saved);
       this.cloudPassword.set('');

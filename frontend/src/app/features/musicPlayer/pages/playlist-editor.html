@@ -37,14 +37,17 @@
 </div>
 
 <ul class="songs">
-  @for (track of visible(); track track.id) {
+  @for (row of visible(); track row.key) {
     <li>
-      <label class="song" [class.on]="isSelected(track)">
-        <input type="checkbox" [checked]="isSelected(track)" (change)="toggle(track)" />
+      <label class="song" [class.on]="isSelected(row)">
+        <input type="checkbox" [checked]="isSelected(row)" (change)="toggle(row)" />
         <span class="meta">
-          <span class="title">{{ track.title }}</span>
-          <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+          <span class="title">{{ row.title }}</span>
+          <span class="artist">{{ row.artist || 'Unknown artist' }}</span>
         </span>
+        @if (row.tag) {
+          <span class="tag" [class.off]="row.tag === 'not available'">{{ row.tag }}</span>
+        }
       </label>
     </li>
   } @empty {
