@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFtp } from './ftp-fixture.mjs';
-import { openSession, safeName, testConnection } from '../modules/cloud/remote.mjs';
+import { openSession, plainError, safeName, testConnection } from '../modules/cloud/remote.mjs';
 
 let ftp;
 const local = mkdtempSync(join(tmpdir(), 'musehik-local-'));
@@ -78,4 +78,13 @@ test('testConnection reports plain FTP when TLS is unavailable', async () => {
   const strict = await testConnection({ ...ftp.settings, allowPlainFtp: false });
   assert.equal(strict.ok, false);
   assert.match(strict.error, /only without encryption/);
+});
+
+test('certificate problems are explained, not reported as "no encryption"', () => {
+  const settings = { host: 'ftp.mysite.fr', password: 'pw' };
+  const mismatch = plainError(Object.assign(new Error("Hostname/IP does not match certificate's altnames: Host: ftp.mysite.fr. is not in the cert's altnames: DNS:*.lwspanel.com, DNS:lwspanel.com"), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' }), settings);
+  assert.match(mismatch.message, /certificate is made for \*\.lwspanel\.com, lwspanel\.com/);
+  assert.match(mismatch.message, /instead of ftp\.mysite\.fr/);
+  const selfSigned = plainError(Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' }), settings);
+  assert.match(selfSigned.message, /certificate is not trusted/);
 });

@@ -17,11 +17,20 @@ export function safeName(name) {
   return text;
 }
 
+const isCertError = e => /^(ERR_TLS_CERT|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_VERIFY|CERT_)/.test(String(e?.code ?? ''))
+  || /certificate/i.test(e?.message ?? '');
+
 /** Rewrites an FTP/network error as a plain sentence, with the password scrubbed out. */
-function plainError(e, settings) {
+export function plainError(e, settings) {
   const code = e?.code;
   let message;
-  if (code === 530) message = 'wrong user name or password.';
+  if (isCertError(e)) {
+    // Common on shared hosting: the FTP certificate is made for the hosting company's name, not your domain.
+    const names = /.*altnames: (.*)$/.exec(e.message)?.[1]?.split(/,\s*/).map(n => n.replace(/^DNS:/, '')).join(', ');
+    message = names
+      ? `the server's security certificate is made for ${names} instead of ${settings.host}. Use a host name it covers (your hosting's FTP server name).`
+      : `the server's security certificate is not trusted (${e.message}).`;
+  } else if (code === 530) message = 'wrong user name or password.';
   else if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'EAI_AGAIN')
     message = `cannot reach ${settings.host}. Check the host name and your internet connection.`;
   else if (code === 'ETIMEDOUT' || /timeout/i.test(e?.message)) message = `${settings.host} did not answer in time.`;
@@ -29,6 +38,7 @@ function plainError(e, settings) {
   if (settings.password) message = message.split(settings.password).join('***');
   const error = new Error(`Cloud: ${message}`);
   error.code = code;
+  error.certificate = isCertError(e);
   return error;
 }
 
@@ -170,7 +180,8 @@ export async function testConnection(settings) {
     await session.close();
     return { ok: true, secure };
   } catch (e) {
-    if (!settings.allowPlainFtp) {
+    // A certificate problem is not "no encryption": say what is wrong with the certificate instead.
+    if (!settings.allowPlainFtp && !e.certificate) {
       try {
         const session = await openSession({ ...settings, allowPlainFtp: true });
         const { secure } = session;

@@ -59,8 +59,11 @@ const inFlight = new Map(); // song id -> Promise<path>: one download per song, 
 
 /** The cached file of a cloud song, downloading it first if needed (counts against the monthly traffic). */
 export function fetchSong(song, settings = loadSettings()) {
-  const ready = localSource(song);
-  if (ready?.from === 'cache') { touch(song); return Promise.resolve(ready.path); }
+  const ready = localSource(song); // in the local library (free) or already cached: no download
+  if (ready) {
+    if (ready.from === 'cache') touch(song);
+    return Promise.resolve(ready.path);
+  }
   if (inFlight.has(song.id)) return inFlight.get(song.id);
   const job = (async () => {
     mkdirSync(cacheDir, { recursive: true });

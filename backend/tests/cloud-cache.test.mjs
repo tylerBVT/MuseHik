@@ -41,6 +41,14 @@ test('prefers the local library copy', async () => {
   assert.deepEqual(localSource(song), { path, from: 'library' });
 });
 
+test('fetching a song that is in the local library downloads nothing', async () => {
+  const song = { id: 98, file: 'X - Local Copy.mp3', title: 'Local Artist - Local Song', artist: '', duration: 0, size: 100 };
+  const before = usedThisMonth();
+  assert.equal(await fetchSong(song, ftp.settings), join(tmp, 'music', 'Local Artist - Local Song.mp3'));
+  assert.equal(usedThisMonth(), before, 'no FTP traffic');
+  assert.equal(cachedIds().has(98), false);
+});
+
 test('fetches once and serves from cache after', async () => {
   const song = cloudSong(1, 'One', 5000);
   assert.equal(localSource(song), null);
