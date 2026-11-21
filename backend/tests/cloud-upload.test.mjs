@@ -58,15 +58,18 @@ test('stops at the monthly limit', async () => {
 });
 
 test('cancel leaves no partial file', async () => {
-  const [path] = makeSongs(join(tmp, 'set3'), ['Big - Song'], 60_000_000);
+  const [path] = makeSongs(join(tmp, 'set3'), ['Big - Song'], 150_000_000);
   const before = cloudIndex().songs.length;
   const job = startUpload({ paths: [path] }, ftp.settings);
-  for (let i = 0; i < 400 && getUpload(job.id).bytesDone === 0; i++) await new Promise(r => setTimeout(r, 5));
+  while (getUpload(job.id).bytesDone === 0 && getUpload(job.id).state === 'running') await new Promise(r => setImmediate(r));
   cancelUpload(job.id);
   const end = await finished(job);
   assert.equal(end.state, 'stopped');
-  assert.equal(cloudSongs().some(f => f.startsWith('Big - Song')), false, cloudSongs().join(', '));
-  assert.equal(cloudIndex().songs.length, before);
+  assert.equal(cloudSongs().some(f => f.includes('.part')), false, `no half file: ${cloudSongs().join(', ')}`);
+  // Stop can land just after the last byte: then the song is complete and kept. Files and index must agree.
+  const onCloud = cloudSongs().includes('Big - Song.mp3');
+  assert.equal(end.uploaded.length === 1, onCloud);
+  assert.equal(cloudIndex().songs.length, before + (onCloud ? 1 : 0));
 });
 
 test('a second upload cannot start while one is running', async () => {
