@@ -6,6 +6,9 @@ import { dataDir } from '../../core/config.mjs';
 
 const file = () => process.env.CLOUD_SETTINGS || join(dataDir, 'cloud.json');
 
+/** Another local cloud file kept next to the settings (e.g. the offline copy of the cloud index). */
+export const localFile = name => join(dirname(file()), name);
+
 export const DEFAULTS = Object.freeze({
   host: '', port: 21, user: '', password: '', folder: 'music',
   monthlyLimitGB: 10, storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
