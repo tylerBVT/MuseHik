@@ -47,7 +47,7 @@ const q = {
     ON CONFLICT(path) DO UPDATE SET title=@title, artist=@artist, album=@album, duration=@duration,
       isrc=@isrc, key=@key, source=COALESCE(@source, source), size=@size, mtime_ms=@mtime_ms`),
   remove: db.prepare('DELETE FROM tracks WHERE path = ?'),
-  all: db.prepare('SELECT id, title, artist, album, duration FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE'),
+  all: db.prepare('SELECT id, title, artist, album, duration, size FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE'),
   paths: db.prepare('SELECT path, size, mtime_ms FROM tracks'),
   count: db.prepare('SELECT COUNT(*) AS n FROM tracks'),
 };

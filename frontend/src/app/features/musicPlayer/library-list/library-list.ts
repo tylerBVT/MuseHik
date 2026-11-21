@@ -14,6 +14,8 @@ export class LibraryList {
   readonly tracks = input.required<Track[]>();
   readonly heading = input('Tracks');
   readonly emptyMessage = input('No songs here yet.');
+  /** Ids of songs that play without the network (cloud page): marked "on this laptop". */
+  readonly onLaptop = input<ReadonlySet<number> | null>(null);
 
   protected readonly library = inject(LibraryService);
   protected readonly player = inject(PlayerService);

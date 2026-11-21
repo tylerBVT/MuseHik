@@ -264,4 +264,53 @@ describe('PlayerService', () => {
       expect(player.position()).toBe(90);
     });
   });
+
+  describe('cloud songs', () => {
+    const cloudSongs: Track[] = songs.slice(0, 3).map((s) => ({
+      ...s,
+      id: -s.id,
+      stream: `/cloud/${s.id}/stream`,
+      cover: `/cloud/${s.id}/cover`,
+      prefetch: `/cloud/${s.id}/prefetch`,
+    }));
+    const reach = (seconds: number) => {
+      audio.currentTime = seconds;
+      audio.dispatchEvent(new Event('timeupdate'));
+    };
+
+    it('plays from the song’s own stream address', () => {
+      player.play(cloudSongs[0], cloudSongs);
+      expect(audio.src).toBe('/cloud/1/stream');
+    });
+
+    it('prefetches the next song once, at half time', () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 202 }));
+      try {
+        player.play(cloudSongs[0], cloudSongs);
+        reach(90);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        reach(101);
+        reach(150);
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(fetchSpy).toHaveBeenCalledWith('/cloud/2/prefetch', { method: 'POST' });
+        audio.finish(); // song 2 starts: at its half, song 3 is fetched
+        reach(120);
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        expect(fetchSpy).toHaveBeenLastCalledWith('/cloud/3/prefetch', { method: 'POST' });
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it('does not prefetch library songs', () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 202 }));
+      try {
+        player.play(songs[0], songs);
+        reach(150);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+  });
 });

@@ -60,7 +60,12 @@
           </span>
           <span class="meta">
             <span class="title">{{ track.title }}</span>
-            <span class="artist">{{ track.artist || 'Unknown artist' }}</span>
+            <span class="artist">
+              {{ track.artist || 'Unknown artist' }}
+              @if (onLaptop()?.has(track.id)) {
+                <span class="badge">on this laptop</span>
+              }
+            </span>
           </span>
           <span class="album">{{ track.album }}</span>
           <span class="time">{{ formatTime(track.duration) }}</span>

@@ -1,0 +1,169 @@
+<app-page-header title="Cloud upload" />
+<app-cloud-usage />
+
+@if (job(); as j) {
+  <section class="progress" aria-live="polite">
+    <div class="progress-head">
+      <span class="title">
+        @switch (j.state) {
+          @case ('running') { Uploading... }
+          @case ('done') { Upload finished }
+          @case ('stopped') { Upload stopped }
+          @case ('failed') { Upload failed }
+        }
+      </span>
+      <span class="count">{{ j.done }} / {{ j.total }} songs</span>
+    </div>
+    <div class="bar" role="progressbar" aria-label="Upload progress" [attr.aria-valuenow]="percent()">
+      <div class="bar-fill" [style.width.%]="percent()"></div>
+    </div>
+    <div class="progress-foot">
+      <span class="percent">{{ size(j.bytesDone) }} of {{ size(j.bytesTotal) }}</span>
+      @if (j.current) {
+        <span class="current">{{ j.current }}</span>
+      }
+    </div>
+    @if (running()) {
+      <button type="button" class="action secondary" (click)="stop()">Stop</button>
+    } @else {
+      @if (j.error) {
+        <p class="error">{{ j.error }}</p>
+      }
+      <p class="summary">
+        {{ j.uploaded.length }} uploaded · {{ j.skipped.length }} already on the cloud · {{ j.failed.length }} failed
+      </p>
+      @if (j.skipped.length) {
+        <details>
+          <summary>Already on the cloud ({{ j.skipped.length }})</summary>
+          <ul>
+            @for (item of j.skipped; track $index) {
+              <li>{{ item.artist ? item.artist + ' - ' : '' }}{{ item.title }}: {{ item.reason }}</li>
+            }
+          </ul>
+        </details>
+      }
+      @if (j.failed.length) {
+        <details open>
+          <summary>Could not be uploaded ({{ j.failed.length }})</summary>
+          <ul>
+            @for (item of j.failed; track $index) {
+              <li>{{ item.artist ? item.artist + ' - ' : '' }}{{ item.title }}: {{ item.reason }}</li>
+            }
+          </ul>
+        </details>
+      }
+    }
+  </section>
+}
+
+<div class="tabs" role="tablist" aria-label="What to upload">
+  <button type="button" role="tab" class="tab" [class.on]="tab() === 'songs'" [attr.aria-selected]="tab() === 'songs'" (click)="setTab('songs')">Songs</button>
+  <button type="button" role="tab" class="tab" [class.on]="tab() === 'playlist'" [attr.aria-selected]="tab() === 'playlist'" (click)="setTab('playlist')">Playlist</button>
+  <button type="button" role="tab" class="tab" [class.on]="tab() === 'folder'" [attr.aria-selected]="tab() === 'folder'" (click)="setTab('folder')">Folder</button>
+</div>
+
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@switch (tab()) {
+  @case ('songs') {
+    <div class="tools">
+      <input
+        type="search"
+        class="search"
+        placeholder="Search title, artist or album"
+        aria-label="Search songs to upload"
+        autocomplete="off"
+        [value]="query()"
+        (input)="query.set($any($event.target).value)"
+      />
+      <button type="button" class="action secondary" (click)="selectAllVisible()">Tick all shown</button>
+      <button type="button" class="action secondary" [disabled]="!pickedIds().size" (click)="clearPicked()">Untick all</button>
+    </div>
+    <ul class="songs">
+      @for (row of libraryRows(); track row.key) {
+        <li>
+          <label class="song" [class.on]="pickedIds().has(+row.key)">
+            <input type="checkbox" [checked]="pickedIds().has(+row.key)" (change)="toggleId(row.key)" />
+            <span class="meta">
+              <span class="title">{{ row.title }}</span>
+              <span class="artist">{{ row.artist || 'Unknown artist' }}</span>
+            </span>
+            <span class="size">{{ size(row.size) }}</span>
+          </label>
+        </li>
+      } @empty {
+        <li class="none">{{ query() ? 'No song matches.' : 'The library has no songs yet.' }}</li>
+      }
+    </ul>
+  }
+  @case ('playlist') {
+    <div class="choices-list">
+      @for (playlist of playlists.playlists(); track playlist.id) {
+        <button type="button" class="pill" [class.on]="playlistId() === playlist.id" (click)="choosePlaylist(playlist.id)">
+          {{ playlist.name }} <span class="muted">({{ playlist.count }})</span>
+        </button>
+      } @empty {
+        <p class="none">No playlists yet.</p>
+      }
+    </div>
+    @if (playlistId() !== null) {
+      <ul class="songs">
+        @for (row of playlistRows(); track row.key) {
+          <li class="song">
+            <span class="meta">
+              <span class="title">{{ row.title }}</span>
+              <span class="artist">{{ row.artist || 'Unknown artist' }}</span>
+            </span>
+            <span class="size">{{ size(row.size) }}</span>
+          </li>
+        } @empty {
+          <li class="none">This playlist is empty.</li>
+        }
+      </ul>
+    }
+  }
+  @case ('folder') {
+    <div class="tools">
+      <button type="button" class="action" [disabled]="busy()" (click)="pickFolder()">Choose folder...</button>
+      <input
+        type="text"
+        class="search"
+        placeholder="or type a folder path, e.g. C:\Users\me\Music"
+        aria-label="Folder path"
+        [value]="folder()"
+        (input)="folder.set($any($event.target).value)"
+        (keydown.enter)="listFolder()"
+      />
+      <button type="button" class="action secondary" [disabled]="busy() || !folder().trim()" (click)="listFolder()">List songs</button>
+    </div>
+    @if (busy()) {
+      <p class="none">Reading the folder...</p>
+    }
+    <ul class="songs">
+      @for (row of folderRows(); track row.key) {
+        <li>
+          <label class="song" [class.on]="pickedPaths().has(row.key)">
+            <input type="checkbox" [checked]="pickedPaths().has(row.key)" (change)="togglePath(row.key)" />
+            <span class="meta">
+              <span class="title">{{ row.title }}</span>
+              <span class="artist">{{ row.artist || row.key }}</span>
+            </span>
+            <span class="size">{{ size(row.size) }}</span>
+          </label>
+        </li>
+      }
+    </ul>
+  }
+}
+
+<footer class="send">
+  <span>
+    <strong>{{ selection().count }} {{ selection().count === 1 ? 'song' : 'songs' }}, {{ size(selection().bytes) }}</strong>
+    @if (leftThisMonth() !== null) {
+      <span class="muted"> · {{ size(leftThisMonth()!) }} left this month</span>
+    }
+  </span>
+  <button type="button" class="action" [disabled]="!canUpload()" (click)="upload()">Upload</button>
+</footer>

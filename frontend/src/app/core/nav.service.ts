@@ -6,6 +6,8 @@ export type View =
   | { page: 'tracks' }
   | { page: 'download' }
   | { page: 'separate' }
+  | { page: 'cloud' }
+  | { page: 'cloud-upload' }
   | { page: 'create' }
   | { page: 'playlist'; id: number }
   | { page: 'edit'; id: number };

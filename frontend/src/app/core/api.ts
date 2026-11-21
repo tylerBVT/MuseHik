@@ -11,10 +11,16 @@ export type Track = {
   album: string;
   /** Length in seconds. */
   duration: number;
+  /** File size in bytes (library songs). */
+  size?: number;
+  /** Cloud songs only: where to stream, show the cover and fetch in advance (library songs use their id). */
+  stream?: string;
+  cover?: string;
+  prefetch?: string;
 };
 
-export const streamUrl = (track: Track) => `${API}/library/${track.id}/stream`;
-export const coverUrl = (track: Track) => `${API}/library/${track.id}/cover`;
+export const streamUrl = (track: Track) => track.stream ?? `${API}/library/${track.id}/stream`;
+export const coverUrl = (track: Track) => track.cover ?? `${API}/library/${track.id}/cover`;
 
 /** 3:07 style time. */
 export function formatTime(seconds: number): string {

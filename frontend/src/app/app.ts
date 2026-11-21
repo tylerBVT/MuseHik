@@ -11,9 +11,11 @@ import { PlaylistPage } from './features/musicPlayer/pages/playlist-page';
 import { TracksPage } from './features/musicPlayer/pages/tracks-page';
 import { PlayerBar } from './features/musicPlayer/player-bar/player-bar';
 import { Settings } from './settings/settings';
+import { CloudPage } from './features/cloud/cloud-page';
+import { CloudUploadPage } from './features/cloud/cloud-upload-page';
 
 @Component({
-  imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar],
+  imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar, CloudPage, CloudUploadPage],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',

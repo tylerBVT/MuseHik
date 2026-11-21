@@ -100,3 +100,66 @@
     }
   }
 </section>
+
+<section class="group" aria-labelledby="cloud">
+  <h2 id="cloud">Cloud (FTP)</h2>
+  <p class="hint intro">
+    Songs uploaded here can be played from any laptop running MuseHik. Use an FTP account that can only see the
+    music folder (you can create one in the LWS panel), not the main login of the hosting: the hosting also holds
+    websites. These details stay on this laptop.
+  </p>
+  @if (cloudForm(); as f) {
+    <div class="form">
+      <label class="field">
+        <span class="label">Host</span>
+        <input type="text" autocomplete="off" placeholder="ftp.example.com" [value]="f.host" (input)="setCloud('host', $any($event.target).value)" />
+      </label>
+      <label class="field small">
+        <span class="label">Port</span>
+        <input type="number" min="1" [value]="f.port" (input)="setCloud('port', +$any($event.target).value)" />
+      </label>
+      <label class="field">
+        <span class="label">User</span>
+        <input type="text" autocomplete="off" [value]="f.user" (input)="setCloud('user', $any($event.target).value)" />
+      </label>
+      <label class="field">
+        <span class="label">Password</span>
+        <input
+          type="password"
+          autocomplete="new-password"
+          [placeholder]="f.hasPassword ? 'Saved (type to change it)' : ''"
+          [value]="cloudPassword()"
+          (input)="cloudPassword.set($any($event.target).value)"
+        />
+      </label>
+      <label class="field">
+        <span class="label">Folder</span>
+        <input type="text" autocomplete="off" [value]="f.folder" (input)="setCloud('folder', $any($event.target).value)" />
+      </label>
+      <label class="field small">
+        <span class="label">Monthly limit (GB)</span>
+        <input type="number" min="0.1" step="0.5" [value]="f.monthlyLimitGB" (input)="setCloud('monthlyLimitGB', +$any($event.target).value)" />
+      </label>
+      <label class="field small">
+        <span class="label">Storage limit (GB)</span>
+        <input type="number" min="0.1" step="1" [value]="f.storageLimitGB" (input)="setCloud('storageLimitGB', +$any($event.target).value)" />
+      </label>
+      <label class="field small">
+        <span class="label">Cache on this laptop (GB)</span>
+        <input type="number" min="0.1" step="0.5" [value]="f.cacheLimitGB" (input)="setCloud('cacheLimitGB', +$any($event.target).value)" />
+      </label>
+    </div>
+    <label class="check">
+      <input type="checkbox" [checked]="f.allowPlainFtp" (change)="setCloud('allowPlainFtp', $any($event.target).checked)" />
+      Allow unencrypted FTP (only if the server does not support FTPS)
+    </label>
+    <div class="actions">
+      <button type="button" class="action" [disabled]="cloudBusy()" (click)="saveAndTestCloud()">
+        {{ cloudBusy() ? 'Connecting...' : 'Save and test connection' }}
+      </button>
+    </div>
+  }
+  @if (cloudResult(); as r) {
+    <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
+  }
+</section>

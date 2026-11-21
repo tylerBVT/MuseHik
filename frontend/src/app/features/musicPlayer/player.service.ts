@@ -46,6 +46,8 @@ export class PlayerService {
   readonly error = signal<string | null>(null);
   readonly shuffle = signal(false);
   readonly repeat = signal<RepeatMode>('off');
+  /** Whether the next song was already fetched in advance during the current one. */
+  private prefetched = false;
 
   readonly hasNext = computed(
     () => this.queue().length > 1 && (this.repeat() === 'all' || this.queuePosition() < this.queue().length - 1),
@@ -58,7 +60,10 @@ export class PlayerService {
     audio.volume = this.volume();
     audio.addEventListener('play', () => this.playing.set(true));
     audio.addEventListener('pause', () => this.playing.set(false));
-    audio.addEventListener('timeupdate', () => this.position.set(audio.currentTime));
+    audio.addEventListener('timeupdate', () => {
+      this.position.set(audio.currentTime);
+      this.prefetchNext();
+    });
     audio.addEventListener('durationchange', () => {
       if (Number.isFinite(audio.duration)) this.duration.set(audio.duration);
     });
@@ -158,10 +163,29 @@ export class PlayerService {
     this.startAt(step.position, !step.stop);
   }
 
+  /**
+   * Halfway through a song, asks the server to fetch the next one if it is a cloud song, so it starts without a
+   * wait. Once per song; only when the next song is known (not at the end of a shuffled pass).
+   */
+  private prefetchNext(): void {
+    if (this.prefetched || !(this.duration() > 0) || this.audio.currentTime < this.duration() / 2) return;
+    this.prefetched = true;
+    if (this.repeat() === 'one') return;
+    const step = advance(this.queuePosition(), this.queue().length, this.repeat(), true);
+    if (step.stop || (step.wrapped && this.shuffle())) return;
+    const next = this.queue()[this.order()[step.position]];
+    if (next?.prefetch && next !== this.current()) {
+      fetch(next.prefetch, { method: 'POST' }).catch(() => {
+        /* only a head start: playing it later fetches it anyway */
+      });
+    }
+  }
+
   /** Loads the song at `position` in the play order. `autoplay = false` leaves it loaded but paused. */
   private startAt(position: number, autoplay = true): void {
     const track = this.queue()[this.order()[position]];
     if (!track) return;
+    this.prefetched = false;
     this.queuePosition.set(position);
     this.error.set(null);
     this.position.set(0);
