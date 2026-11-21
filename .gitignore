@@ -21,3 +21,6 @@ backend/config.json
 
 # Local library index
 backend/data/
+
+# Plan execution scratch (superpowers)
+.superpowers/
