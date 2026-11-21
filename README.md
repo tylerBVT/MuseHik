@@ -22,6 +22,7 @@ Spotify link                                   IN PROGRESS          todo        
 | Short term | **Downloader**: YouTube / Spotify / Deezer link -> tagged MP3 in the library (yt-dlp + ffmpeg) | Done |
 | Short term | **Player + library**: SQLite index, search, playlists, mini + full-screen player, media keys | Done |
 | Short term | **Instrumental separation**: MP3 in -> best possible instrumental MP3 out (RoFormer / Demucs models, ensembles) | **First version, testing**: pick a song + Fast / Best quality / Keep backing vocals, progress bar, listen, compare, download. Engine: RoFormer models + MSST TTA + UVR ensembles + karaoke-gen backing vocals ([module README](backend/modules/instrumentalSeparator/README.md)) |
+| Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting over FTP; listen from any laptop; 10 GB/month traffic and 30 GB storage limits with a usage bar | **Done, tested on a local FTP server**; not yet tried against the real hosting ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
 | Short term | **Official instrumental lookup**: find an "(Instrumental)" release before falling back to AI separation | Todo |
 | Short term | Player switch **original / instrumental only** | Todo (needs the separator) |
 | Short term | **Synced lyrics** (LRC from LRCLIB) + karaoke scrolling | Todo |
@@ -38,13 +39,14 @@ Developer setup:
 - `frontend/`: Angular app, `npm install` then `npm start` (or built into `frontend/dist`, served by the backend).
 - Instrumental separator: its own Python venv (PyTorch CUDA) and the AI models live **outside OneDrive** in `C:\Users\<you>\MuseHikData\` (`separator-venv\`, `models\`), so gigabytes are not synced. Change it with `heavyDir` in `config.json` or the `MUSEHIK_HEAVY_DIR` env var.
   Install: `MuseHikData\separator-venv\Scripts\python.exe -m pip install --resume-retries 50 torch torchaudio --index-url https://download.pytorch.org/whl/cu128`
+- Cloud: fill in Settings > Cloud (FTP host, user, password, folder). Saved in `backend/data/cloud.json` (git-ignored). Played cloud songs are cached in `MuseHikData\cloudCache\` (2 GB). `node tests/ui-cloud.mjs` checks the cloud pages in Chrome against a throw-away FTP server.
 
 ## Code layout (by module)
 
 ```text
-frontend/src/app/features/   musicDownloader, musicPlayer, instrumentalSeparator
+frontend/src/app/features/   musicDownloader, musicPlayer, instrumentalSeparator, cloud
 backend/core/                config, SQLite library, helpers
-backend/modules/             musicDownloader, musicPlayer, instrumentalSeparator (each exposes routes.mjs)
+backend/modules/             musicDownloader, musicPlayer, instrumentalSeparator, cloud (each exposes routes.mjs)
 openSourceProjects/          third-party repos cloned for reading only (git-ignored); the 6 separation repos are in MuseHikData/openSourceProjects/
 docs/                        player spec, roadmap
 ```

@@ -62,7 +62,7 @@ export type UploadJob = {
 /** "410 MB", "3.2 GB" (1 GB = 1000 MB, like the hosting counts). */
 export function formatSize(bytes: number): string {
   if (bytes < 1e9) return `${Math.round(bytes / 1e6)} MB`;
-  return `${(bytes / 1e9).toFixed(bytes < 1e10 ? 2 : 1)} GB`;
+  return `${Number((bytes / 1e9).toFixed(bytes < 1e10 ? 2 : 1))} GB`;
 }
 
 /** Talks to the local server's /api/cloud (which does the FTP work). */
