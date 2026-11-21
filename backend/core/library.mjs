@@ -52,7 +52,8 @@ const q = {
   count: db.prepare('SELECT COUNT(*) AS n FROM tracks'),
 };
 
-async function readTags(path) {
+/** Title, artist, length... of an audio file (falls back to the file name when it has no tags). */
+export async function readTags(path) {
   const info = await stat(path);
   let meta = null;
   try { meta = await parseFile(path, { duration: true, skipCovers: true }); } catch { /* unreadable tags: fall back to the file name */ }

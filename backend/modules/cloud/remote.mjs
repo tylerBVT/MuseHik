@@ -79,16 +79,28 @@ export async function openSession(settings) {
   const root = await client.pwd();
   const at = name => posix.join(root, safeName(name));
   let onBytes = null;
-  client.trackProgress(info => {
-    session.bytes = info.bytesOverall;
+  let bytesBefore = 0; // bytes of the connections closed by a Stop (the tracker restarts at 0 on a new one)
+  const track = () => client.trackProgress(info => {
+    session.bytes = bytesBefore + info.bytesOverall;
     onBytes?.(info.bytes);
   });
+  track();
+  // Stop closes the connection mid-transfer; the next call reconnects, so the caller can still clean up.
+  const reconnect = async () => {
+    bytesBefore = session.bytes;
+    ({ client } = await connectBest(settings));
+    await client.cd(root);
+    track();
+  };
 
   // basic-ftp does one thing at a time per connection: queue every call.
   let queue = Promise.resolve();
   const run = (work) => {
     const next = queue.then(async () => {
-      try { return await work(); } catch (e) { throw e.message?.startsWith('Cloud: ') ? e : plainError(e, settings); }
+      try {
+        if (client.closed) await reconnect();
+        return await work();
+      } catch (e) { throw e.message?.startsWith('Cloud: ') ? e : plainError(e, settings); }
     });
     queue = next.catch(() => {});
     return next;
