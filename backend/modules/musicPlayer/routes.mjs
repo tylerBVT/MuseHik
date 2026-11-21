@@ -12,7 +12,7 @@ export async function handle(req, { res, json, cors }) {
   if (req.url === '/api/playlists' && req.method === 'GET') { json(200, listPlaylists()); return true; }
   if (req.url === '/api/playlists' && req.method === 'POST') {
     const body = await readJson(req);
-    json(201, createPlaylist(body.name, body.trackIds));
+    json(201, createPlaylist(body.name, body.songs ?? body.trackIds));
     return true;
   }
   const listMatch = req.url.match(/^\/api\/playlists\/(\d+)$/);
@@ -20,7 +20,7 @@ export async function handle(req, { res, json, cors }) {
     const id = Number(listMatch[1]);
     let result;
     if (req.method === 'GET') result = getPlaylist(id);
-    else if (req.method === 'PUT') { const body = await readJson(req); result = updatePlaylist(id, body.name, body.trackIds); }
+    else if (req.method === 'PUT') { const body = await readJson(req); result = updatePlaylist(id, body.name, body.songs ?? body.trackIds); }
     else if (req.method === 'DELETE') result = deletePlaylist(id) ? { deleted: id } : undefined;
     else { json(405, { error: 'Method not allowed' }); return true; }
     if (result) json(200, result);

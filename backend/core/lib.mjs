@@ -54,6 +54,13 @@ export const trackKey = (artist, title) =>
 /** True when two durations (seconds) are compatible; unknown durations never block a match. */
 export const sameLength = (a, b, tolerance = 6) => !a || !b || Math.abs(a - b) <= tolerance;
 
+/** Same song: same ISRC, or the same cleaned artist + title with a compatible length. */
+export function sameIdentity(a, b) {
+  if (a.isrc && b.isrc && String(a.isrc).toLowerCase() === String(b.isrc).toLowerCase()) return true;
+  const keyOf = s => s.key || trackKey(s.artist || '', s.title || '');
+  return keyOf(a) === keyOf(b) && sameLength(a.duration, b.duration);
+}
+
 // ---- Loose identity: the same song uploaded differently ("PLK - Décembre | A COLORS SHOW" by COLORS,
 // "Décembre - A COLORS SHOW" by "PLK, COLORS", "Décembre" by PLK). Only used together with a matching duration.
 const NOISE = String.raw`official|officiel+e?|music|video|vid[eé]o|clip|audio|lyrics?|paroles|visuali[sz]er|hd|hq|4k|remaster(?:ed)?|colors\s+show`;

@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { fileBase, sameLength, trackKey } from '../../core/lib.mjs';
+import { fileBase, sameIdentity } from '../../core/lib.mjs';
 import { AUDIO_EXTS, getTrack, readTags } from '../../core/library.mjs';
 import { LimitError } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
@@ -26,11 +26,7 @@ const label = s => `${s.artist ? `${s.artist} - ` : ''}${s.title}`;
 const item = (song, extra = {}) => ({ title: song.title, artist: song.artist || '', file: song.file || '', ...extra });
 
 /** The cloud song this one duplicates: same ISRC, or same artist + title with a compatible length. */
-function onCloud(index, song) {
-  const key = trackKey(song.artist || '', song.title);
-  return index.songs.find(s => (song.isrc && s.isrc && s.isrc.toLowerCase() === song.isrc.toLowerCase())
-    || (s.key === key && sameLength(s.duration, song.duration)));
-}
+const onCloud = (index, song) => index.songs.find(s => sameIdentity(s, song));
 
 /** First free file name on the cloud: never overwrites a different song that shares the name. */
 function freeFile(index, song) {
