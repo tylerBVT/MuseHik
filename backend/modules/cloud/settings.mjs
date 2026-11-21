@@ -10,7 +10,7 @@ const file = () => process.env.CLOUD_SETTINGS || join(dataDir, 'cloud.json');
 export const localFile = name => join(dirname(file()), name);
 
 export const DEFAULTS = Object.freeze({
-  host: '', port: 21, user: '', password: '', folder: 'music',
+  host: '', port: 21, user: '', password: '', folder: 'music', name: '',
   monthlyLimitGB: 10, storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
 });
 
@@ -33,7 +33,8 @@ const positive = (value, name) => {
 export function saveSettings(patch) {
   const current = loadSettings();
   const next = { ...current };
-  for (const key of ['host', 'user', 'folder']) if (patch[key] !== undefined) next[key] = String(patch[key]).trim();
+  for (const key of ['host', 'user', 'folder', 'name']) if (patch[key] !== undefined) next[key] = String(patch[key]).trim();
+  if (next.name.length > 40) throw new Error('Your name is too long (40 characters max).');
   if (patch.password) next.password = String(patch.password);
   if (patch.port !== undefined) next.port = positive(patch.port, 'Port');
   if (patch.monthlyLimitGB !== undefined) next.monthlyLimitGB = positive(patch.monthlyLimitGB, 'Monthly limit');

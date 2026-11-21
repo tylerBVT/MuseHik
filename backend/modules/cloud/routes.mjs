@@ -3,6 +3,7 @@
 //   GET /api/cloud/songs, GET /api/cloud/songs/:id/stream (Range), GET /api/cloud/songs/:id/cover,
 //   POST /api/cloud/songs/:id/prefetch, DELETE /api/cloud/songs/:id, POST /api/cloud/rebuild
 //   POST /api/cloud/folder/pick, POST /api/cloud/folder/scan {path}
+//   PUT /api/cloud/playlists/:id/share {shared}, POST /api/cloud/playlists/sync {force?}
 //   POST /api/cloud/upload {trackIds|paths}, GET /api/cloud/upload/active, GET /api/cloud/upload/:id,
 //   POST /api/cloud/upload/:id/cancel
 import { coverOf } from '../../core/library.mjs';
@@ -10,8 +11,10 @@ import { readJson, streamFile } from '../../core/http.mjs';
 import { fetchSong, localSource, touch } from './cache.mjs';
 import { LimitError } from './limits.mjs';
 import { testConnection } from './remote.mjs';
-import { loadSettings, publicSettings, saveSettings } from './settings.mjs';
+import { isConfigured, loadSettings, publicSettings, saveSettings } from './settings.mjs';
 import { cloudStatus, lastIndex, rebuildIndex, withCloud } from './store.mjs';
+import { setShared } from '../musicPlayer/playlists.mjs';
+import { ownerName, requestSync, syncPlaylists } from './playlistSync.mjs';
 import { activeUpload, cancelUpload, getUpload, pickFolder, scanFolder, startUpload } from './upload.mjs';
 
 /** A cloud song by id, from the local copy of the index (no network for every Range request of the player). */
@@ -89,6 +92,22 @@ export async function handle(req, { res, json, cors }) {
       return true;
     }
     json(405, { error: 'Method not allowed' });
+    return true;
+  }
+
+  if (method === 'POST' && url === '/api/cloud/playlists/sync') {
+    json(200, await requestSync({ force: Boolean((await readJson(req, 1000)).force) }));
+    return true;
+  }
+  const shareMatch = method === 'PUT' && url.match(/^\/api\/cloud\/playlists\/(\d+)\/share$/);
+  if (shareMatch) {
+    const shared = Boolean((await readJson(req, 1000)).shared);
+    const settings = loadSettings();
+    if (shared && !isConfigured(settings)) { json(400, { error: 'Set up the cloud in Settings first.' }); return true; }
+    const playlist = setShared(Number(shareMatch[1]), shared, ownerName(settings));
+    if (!playlist) { json(404, { error: 'Unknown playlist' }); return true; }
+    await syncPlaylists({ settings }).catch(e => console.error('Playlist sync:', e.message));
+    json(200, playlist);
     return true;
   }
 

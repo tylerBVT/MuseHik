@@ -16,6 +16,7 @@ import { moveOldResults } from './modules/instrumentalSeparator/jobs.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
 import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 import * as cloud from './modules/cloud/routes.mjs';
+import { startPlaylistSync } from './modules/cloud/playlistSync.mjs';
 
 const port = Number(process.env.PORT || 3000);
 // 4200 = Angular dev server (ng serve); 3000 = the built app served by this server (MuseHik.bat).
@@ -61,6 +62,7 @@ export async function start() {
   const url = `http://127.0.0.1:${port}`;
   console.log(`Server on ${url}, saving to ${outputDir}`);
   startAutoUpdates(); // yt-dlp: daily background update check
+  startPlaylistSync(); // shared playlists: now, every 5 min, and after each change
   return url;
 }
 
