@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:net';
 import FtpSrv from 'ftp-srv';
 
+let servers = 0;
 const quiet = { child() { return this; }, trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {} };
 
 const freePort = () => new Promise((resolve, reject) => {
@@ -19,9 +20,12 @@ const freePort = () => new Promise((resolve, reject) => {
 export async function startFtp({ user = 'test', password = 'secret' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'musehik-ftp-'));
   const port = await freePort();
-  const pasvMin = await freePort();
+  // Data-connection ports: a window per test process, below Windows' range for outgoing connections (49152+).
+  // ftp-srv checks a port is free, closes it, then opens it again; inside the outgoing range another socket can
+  // take it in between, and the client then waits 30 s for nothing (seen when test files run in parallel).
+  const pasvMin = 20000 + (process.pid % 500) * 50 + (servers++ % 5) * 10;
   const server = new FtpSrv({
-    url: `ftp://127.0.0.1:${port}`, pasv_url: '127.0.0.1', pasv_min: pasvMin, pasv_max: pasvMin + 50,
+    url: `ftp://127.0.0.1:${port}`, pasv_url: '127.0.0.1', pasv_min: pasvMin, pasv_max: pasvMin + 9,
     anonymous: false, log: quiet,
   });
   server.on('login', ({ username, password: given }, resolve, reject) => {
