@@ -137,6 +137,22 @@ input:disabled {
   }
 }
 
+.eta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.paused {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
 .failed {
   margin: 0;
   font-size: 0.85rem;
@@ -186,58 +202,229 @@ button.stop:disabled {
   color: inherit;
 }
 
-.summary {
+/* Download history */
+.history {
+  margin-top: 16px;
+  gap: 10px;
+}
+
+.history-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 14px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.link-button {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: none;
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+.entry {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-alt);
   font-size: 0.92rem;
 }
 
-.summary-line {
-  margin: 0;
-}
-
-.summary details {
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-}
-
-.summary summary {
+.entry > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 10px 12px;
   cursor: pointer;
+  list-style-position: inside;
+}
+
+.entry-title {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-meta {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--success);
+}
+
+.entry.error .badge { background: var(--danger); }
+.entry.cancelled .badge { background: var(--info); }
+
+.entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.entry-link {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.problem-box {
+  padding: 10px 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.problem-text {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.problem-hint {
+  margin: 6px 0 0;
   color: var(--text-secondary);
 }
 
-.summary details.problem summary {
+.list-title {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.list-title.danger {
   color: var(--danger);
 }
 
-.summary ul {
-  margin: 8px 0 0;
+.entry ul {
+  margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 260px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
-.summary li {
+.entry li {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   padding: 6px 0;
   border-bottom: 1px solid var(--hover);
 }
 
-.summary .name {
+.entry .name {
   font-weight: 600;
+  word-break: break-word;
 }
 
-.summary .why {
+.entry .why {
   color: var(--text-muted);
   font-size: 0.85rem;
   word-break: break-word;
+}
+
+.tech summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.tech pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text-secondary);
+}
+
+.entry ul.notes {
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.entry ul.notes li {
+  display: list-item;
+  border: none;
+  padding: 2px 0;
+}
+
+.entry details.group {
+  border-left: 3px solid var(--danger-border);
+  padding-left: 10px;
+}
+
+.entry details.group > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.entry details.group .count {
+  display: inline-block;
+  min-width: 2.2em;
+  font-variant-numeric: tabular-nums;
+  color: var(--danger);
+}
+
+.group-hint {
+  display: block;
+  margin: 4px 0 0;
+}
+
+.upload {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.report-path {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button.small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+button.secondary {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
 }

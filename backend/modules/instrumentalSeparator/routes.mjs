@@ -1,7 +1,7 @@
 // Instrumental separator API:
 //   GET    /api/separator/methods                      the three methods (+ whether the separator is installed)
 //   GET    /api/separator/tracks/:id                   finished instrumentals of a song + its running job, if any
-//   GET    /api/separator/tracks/:id/:method/audio     play one (HTTP Range); add ?download=1 to save it
+//   GET    /api/separator/tracks/:id/:method/audio     play one (HTTP Range); add ?download=1 to save a copy
 //   DELETE /api/separator/tracks/:id/:method           delete one
 //   POST   /api/separator/jobs  { trackId, method }    make one (queued; one at a time on the GPU)
 //   GET    /api/separator/jobs/:id                     progress

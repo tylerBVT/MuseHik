@@ -8,8 +8,8 @@ import { SeparationResult, SeparatorService } from './separator.service';
 
 /**
  * Pick one song from the library (all songs or one playlist, filtered by name), pick a method, and get its
- * instrumental. The work runs on the server (Python + GPU); finished instrumentals can be played, downloaded
- * and compared with the original right here.
+ * instrumental. The work runs on the server (Python + GPU); finished instrumentals are saved in the music folder,
+ * added to the library, and can be played and compared with the original right here.
  */
 @Component({
   imports: [PageHeader],
@@ -82,6 +82,16 @@ export class SeparatorPage {
       this.separator.finished();
       untracked(() => void this.loadResults(track));
     });
+
+    // A finished instrumental is a new song in the library (saved in the music folder): refresh the song lists.
+    let seen = this.separator.finished();
+    effect(() => {
+      const count = this.separator.finished();
+      if (count !== seen) {
+        seen = count;
+        untracked(() => void this.library.load());
+      }
+    });
   }
 
   protected setScope(value: string): void {
@@ -117,6 +127,7 @@ export class SeparatorPage {
     if (!track) return;
     await this.separator.remove(track.id, method);
     await this.loadResults(track);
+    await this.library.load(); // the instrumental was also a song in the library
   }
 
   /** Only one thing plays at a time: pause the main player and the other previews on this page. */

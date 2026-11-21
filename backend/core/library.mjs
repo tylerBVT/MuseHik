@@ -6,7 +6,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { parseFile } from 'music-metadata';
 import { dataDir, outputDir } from './config.mjs';
-import { sameLength, trackKey } from './lib.mjs';
+import { sameLength, sameSong, trackKey } from './lib.mjs';
 
 export const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.opus', '.ogg', '.flac', '.wav']);
 
@@ -40,6 +40,7 @@ const q = {
   byIsrc: db.prepare('SELECT * FROM tracks WHERE isrc = ? COLLATE NOCASE'),
   bySource: db.prepare('SELECT * FROM tracks WHERE source = ?'),
   byKey: db.prepare('SELECT * FROM tracks WHERE key = ?'),
+  byDuration: db.prepare('SELECT * FROM tracks WHERE duration BETWEEN ? AND ?'),
   upsert: db.prepare(`
     INSERT INTO tracks (path, title, artist, album, duration, isrc, key, source, size, mtime_ms)
     VALUES (@path, @title, @artist, @album, @duration, @isrc, @key, @source, @size, @mtime_ms)
@@ -72,7 +73,8 @@ async function* walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) yield* walk(full);
-    else if (AUDIO_EXTS.has(extname(entry.name).toLowerCase())) yield full;
+    // "*.part.mp3" = a file still being written (e.g. an instrumental in the making): not a song yet.
+    else if (AUDIO_EXTS.has(extname(entry.name).toLowerCase()) && !/\.part\.\w+$/i.test(entry.name)) yield full;
   }
 }
 
@@ -96,20 +98,38 @@ export async function scanLibrary() {
   return { added, removed: known.size, total: q.count.get().n };
 }
 
+/** Removes a deleted file from the index. */
+export function forgetFile(path) {
+  q.remove.run(path);
+}
+
 /** Registers one freshly written file (keeps the platform source id, e.g. "youtube:abc"). */
 export async function addFile(path, source = null) {
   q.upsert.run({ ...(await readTags(path)), source });
 }
 
 /**
- * Is this song already in the library? Checks, in order: ISRC, source id, then the cleaned-up
- * artist+title key with a compatible duration. Returns the existing row or undefined.
+ * Is this song already in the library? Checks, in order: ISRC, source id, the cleaned-up artist+title key
+ * with a compatible duration, then (when the duration is known) the same recording uploaded differently
+ * (see sameSong). `exceptPath` ignores one file (the one just downloaded). Returns the existing row or undefined.
  */
-export function findDuplicate({ title, artist, duration, isrc, source }) {
-  if (isrc) { const hit = q.byIsrc.get(isrc); if (hit) return hit; }
-  if (source) { const hit = q.bySource.get(source); if (hit) return hit; }
-  if (title) return q.byKey.all(trackKey(artist, title)).find(r => sameLength(r.duration, duration));
-  return undefined;
+export function findDuplicate({ title, artist, duration, isrc, source }, exceptPath) {
+  const other = r => r && r.path !== exceptPath;
+  // `matchedBy` says why it counts as the same song (shown in download reports, to spot wrong matches).
+  const found = (row, matchedBy) => (row ? { ...row, matchedBy } : undefined);
+  if (isrc) { const hit = q.byIsrc.all(isrc).find(other); if (hit) return found(hit, 'same ISRC'); }
+  if (source) { const hit = q.bySource.all(source).find(other); if (hit) return found(hit, 'same YouTube video'); }
+  if (!title) return undefined;
+  const exact = q.byKey.all(trackKey(artist, title)).find(r => other(r) && sameLength(r.duration, duration));
+  if (exact || !duration) return found(exact, 'same artist + title');
+  return found(q.byDuration.all(duration - 5, duration + 5).find(r => other(r) && sameSong(r, { title, artist, duration })),
+    'another upload (same title, artist and length)');
+}
+
+/** For a file just written: the library song it duplicates (judged by its own tags), or undefined. */
+export async function duplicateOfFile(path) {
+  const tags = await readTags(path);
+  return findDuplicate(tags, path);
 }
 
 export const listTracks = () => q.all.all();

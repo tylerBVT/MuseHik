@@ -37,7 +37,10 @@ song.mp3 --ffmpeg--> 44.1 kHz stereo float
 `C:\Users\<you>\MuseHikData\` (`heavyDir` in `backend/core/config.mjs`):
 - `separator-venv\`: Python 3.13 + PyTorch CUDA 12.8 (RTX 50xx needs cu128) + a few small libraries
 - `models\`: model files, downloaded on first use (200-900 MB each)
-- `instrumentals\`: results, `<song file name> [<method>].mp3`
+
+Results are NOT kept there: they are saved in the music folder next to the songs (and added to the library) as
+`<song file name> (Instrumental).mp3`, `(Instrumental, best quality).mp3` or `(Instrumental + backing vocals).mp3`.
+Older results in `MuseHikData\instrumentals\` are moved there automatically when the server starts.
 
 Setup:
 ```powershell

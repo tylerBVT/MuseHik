@@ -49,6 +49,16 @@
         <span class="percent">{{ percent() === null ? '' : percent() + '%' }}</span>
         <span class="current" [title]="j.current">{{ j.current }}</span>
       </div>
+      @if (timeLeft()) {
+        <p class="eta">{{ timeLeft() }}</p>
+      }
+
+      @if (j.pausedUntil) {
+        <p class="paused">
+          Paused: YouTube is blocking this computer for a while. Asking again now would make it longer, so MuseHik
+          waits and resumes by itself at {{ clock(j.pausedUntil) }}. You can leave it running.
+        </p>
+      }
 
       @if (j.failed.length) {
         <p class="failed">{{ j.failed.length }} track(s) could not be downloaded.</p>
@@ -63,42 +73,131 @@
     </div>
   }
 
-  @if (summary(); as s) {
-    <div class="summary">
-      <p class="summary-line">
-        <strong>{{ s.status === 'cancelled' ? 'Stopped' : 'Finished' }}</strong>
-        {{ s.name ? '"' + s.name + '": ' : '' }}{{ s.files.length }} new,
-        {{ s.skippedList.length }} already in your library, {{ s.failed.length }} failed.
-      </p>
+</section>
 
-      @if (s.skippedList.length) {
-        <details>
-          <summary>{{ s.skippedList.length }} song(s) skipped, already on your device</summary>
+<section class="card history" aria-labelledby="history-title">
+  <div class="history-head">
+    <h2 id="history-title">Download history</h2>
+    @if (history().length) {
+      <button type="button" class="link-button" (click)="forget()">Clear history</button>
+    }
+  </div>
+
+  @if (!history().length) {
+    <p class="help">Your downloads, and why any of them failed, will be listed here.</p>
+  }
+
+  @for (h of history(); track h.id) {
+    <details class="entry" [class]="'entry ' + badge(h).tone" [open]="openId() === h.id" (toggle)="toggle(h, $event)">
+      <summary>
+        <span class="badge">{{ badge(h).label }}</span>
+        <span class="entry-title" [title]="h.url ?? ''">{{ h.name || h.url }}</span>
+        <span class="entry-meta">
+          @if (h.total) {
+            {{ h.files.length }} new · {{ h.skippedList.length }} skipped · {{ h.failed.length }} failed ·
+          }
+          {{ when(h.finishedAt) }}
+        </span>
+      </summary>
+
+      <div class="entry-body">
+        <p class="entry-link">{{ h.url }}</p>
+
+        @if (h.status !== 'cancelled' && h.error) {
+          <div class="problem-box">
+            <p class="problem-text">{{ h.error }}</p>
+            @if (h.hint) { <p class="problem-hint">What to try: {{ h.hint }}</p> }
+            @if (h.detail) {
+              <details class="tech">
+                <summary>Technical details</summary>
+                <pre>{{ h.detail }}</pre>
+              </details>
+            }
+          </div>
+        }
+        @if (h.warning) { <p class="failed">{{ h.warning }}</p> }
+
+        @if (h.notes?.length) {
+          <ul class="notes">
+            @for (note of h.notes; track $index) { <li>{{ note }}</li> }
+          </ul>
+        }
+
+        @if (h.notTried?.length) {
+          <h3 class="list-title danger">Not tried yet ({{ h.notTried!.length }}): "Try again" later picks them up</h3>
           <ul>
-            @for (item of s.skippedList; track item.track) {
+            @for (item of h.notTried; track $index) {
+              <li><span class="name">{{ item }}</span></li>
+            }
+          </ul>
+        }
+
+        @if (h.failed.length) {
+          <h3 class="list-title danger">Could not be downloaded ({{ h.failed.length }}), by reason</h3>
+          @for (group of failureGroups(h); track group.reason) {
+            <details class="group">
+              <summary><span class="count">{{ group.items.length }}</span> {{ group.reason }}</summary>
+              @if (group.hint) { <p class="why group-hint">What to try: {{ group.hint }}</p> }
+              <ul>
+                @for (item of group.items; track $index) {
+                  <li>
+                    <span class="name">{{ item.track }}</span>
+                    @if (item.stage) { <span class="why">Failed at: {{ item.stage }}</span> }
+                    @if (item.candidates?.length || item.detail) {
+                      <details class="tech">
+                        <summary>Technical details</summary>
+                        @for (upload of item.candidates; track $index) {
+                          <p class="upload">
+                            Upload {{ $index + 1 }}: {{ upload.title || upload.url }}
+                            @if (upload.channel) { · {{ upload.channel }} }
+                            @if (attemptOf(item, upload); as error) { <br />→ {{ error }} }
+                          </p>
+                        }
+                        @if (item.detail) { <pre>{{ item.detail }}</pre> }
+                      </details>
+                    }
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        }
+
+        @if (h.files.length) {
+          <h3 class="list-title">Added to your library ({{ h.files.length }})</h3>
+          <ul>
+            @for (file of h.files; track $index) {
+              <li><span class="name">{{ fileName(file) }}</span></li>
+            }
+          </ul>
+        }
+
+        @if (h.skippedList.length) {
+          <h3 class="list-title">Skipped ({{ h.skippedList.length }})</h3>
+          <ul>
+            @for (item of h.skippedList; track $index) {
               <li>
                 <span class="name">{{ item.track }}</span>
                 <span class="why">{{ item.reason }}</span>
               </li>
             }
           </ul>
-        </details>
-      }
+        }
 
-      @if (s.failed.length) {
-        <details class="problem">
-          <summary>{{ s.failed.length }} song(s) could not be downloaded</summary>
-          <ul>
-            @for (item of s.failed; track item.track) {
-              <li>
-                <span class="name">{{ item.track }}</span>
-                <span class="why">{{ item.error }}</span>
-              </li>
-            }
-          </ul>
-        </details>
-      }
-    </div>
+        @if (h.reportFile) {
+          <p class="report-path" [title]="h.reportFile">Full report saved as {{ h.reportFile }}</p>
+        }
+        <div class="entry-actions">
+          @if (h.url && (h.status !== 'done' || h.error)) {
+            <button type="button" class="small" [disabled]="downloading()" (click)="retry(h)">Try again</button>
+          }
+          <button type="button" class="small secondary" (click)="copyReport(h)">
+            {{ copied() === h.id ? 'Copied ✓' : 'Copy report' }}
+          </button>
+          <button type="button" class="small secondary" (click)="forget(h)">Remove from history</button>
+        </div>
+      </div>
+    </details>
   }
 </section>
 

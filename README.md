@@ -34,7 +34,7 @@ Spotify link                                   IN PROGRESS          todo        
 Double-click `MuseHik.bat` (needs Node.js). It starts the server and opens the app in the browser.
 
 Developer setup:
-- `backend/`: `npm install`, copy `config.example.json` to `config.json`, Python venv in `backend/.venv` with yt-dlp + imageio-ffmpeg. `npm test` runs the tests.
+- `backend/`: `npm install`, copy `config.example.json` to `config.json`, Python venv in `backend/.venv`: `pip install -r requirements.txt` (yt-dlp then keeps itself up to date, see Settings). `npm test` runs the tests.
 - `frontend/`: Angular app, `npm install` then `npm start` (or built into `frontend/dist`, served by the backend).
 - Instrumental separator: its own Python venv (PyTorch CUDA) and the AI models live **outside OneDrive** in `C:\Users\<you>\MuseHikData\` (`separator-venv\`, `models\`), so gigabytes are not synced. Change it with `heavyDir` in `config.json` or the `MUSEHIK_HEAVY_DIR` env var.
   Install: `MuseHikData\separator-venv\Scripts\python.exe -m pip install --resume-retries 50 torch torchaudio --index-url https://download.pytorch.org/whl/cu128`

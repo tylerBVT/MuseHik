@@ -27,18 +27,41 @@ async function api(path) {
   return body;
 }
 
+/** Follows a Deezer share link to the real deezer.com URL. */
+async function expandShortLink(url) {
+  for (let hop = 0; hop < 5; hop++) {
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    const location = res.headers.get('location');
+    if (!location) break;
+    const next = new URL(location, url);
+    // The second hop is link.deezer.com/?dest=<real URL>&... : take the destination directly.
+    url = next.searchParams.get('dest') || next.href;
+    const host = new URL(url).hostname;
+    if (/(^|\.)deezer\.com$/.test(host) && host !== 'link.deezer.com') return url;
+  }
+  throw new Error('Could not open this Deezer share link (it may have expired).');
+}
+
 export const deezer = {
   id: 'deezer',
   label: 'Deezer',
 
   parse(u) {
+    // Share links from the app (link.deezer.com/s/...) are redirects; they are followed in resolve().
+    if (['link.deezer.com', 'deezer.page.link'].includes(u.hostname)) return { shortUrl: u.href };
     if (!/(^|\.)deezer\.com$/.test(u.hostname)) return null;
     const m = u.pathname.match(/^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(playlist|album|track)\/(\d+)\/?$/);
     if (!m) throw new Error('Use a Deezer track, album or playlist link.');
     return { type: m[1], id: m[2] };
   },
 
-  async resolve({ type, id }) {
+  async resolve(ref) {
+    if (ref.shortUrl) {
+      const target = await expandShortLink(ref.shortUrl);
+      try { ref = this.parse(new URL(target)); } catch { ref = null; }
+      if (!ref || ref.shortUrl) throw new Error(`This Deezer share link does not lead to a track, album or playlist (it opens ${target}).`);
+    }
+    const { type, id } = ref;
     const data = await api(`/${type}/${id}`);
     let list = [];
     if (type !== 'track') {
@@ -46,7 +69,7 @@ export const deezer = {
       for (let index = 0; ; index += 100) {
         const page = await api(`/${type}/${id}/tracks?limit=100&index=${index}`);
         list.push(...(page.data || []));
-        if (!page.next || index > 5000) break;
+        if (!page.next || index >= 10000) break; // Deezer playlists hold at most 10,000 songs
       }
     }
     const collection = mapDeezer(type, data, list);

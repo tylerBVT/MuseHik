@@ -23,3 +23,80 @@
     </div>
   </div>
 </section>
+
+<section class="group" aria-labelledby="engine">
+  <h2 id="engine">Downloader engine (yt-dlp)</h2>
+  <p class="hint intro">
+    MuseHik downloads with <strong>yt-dlp</strong>, an open-source program used exactly as its authors publish it.
+    YouTube changes often, so MuseHik checks for a new yt-dlp once a day, and right away when a download fails in
+    a way that usually means it needs an update.
+  </p>
+
+  @if (engineError()) {
+    <p class="error">{{ engineError() }}</p>
+  }
+
+  @if (engine(); as e) {
+    <div class="row">
+      <div>
+        <div class="label">Installed version</div>
+        <div class="hint">
+          yt-dlp {{ e.ytdlp ?? 'not installed' }}
+          @if (e.ejs) { · challenge solver {{ e.ejs }} }
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="action" [disabled]="e.updating" (click)="updateNow()">
+          {{ e.updating ? 'Updating...' : 'Check for updates now' }}
+        </button>
+        @if (e.previousVersion) {
+          <button type="button" class="action secondary" [disabled]="e.updating" (click)="rollback()">
+            Go back to {{ e.previousVersion }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="label">Last check</div>
+        <div class="hint" [class.bad]="e.lastResult && !e.lastResult.ok">
+          {{ when(e.lastCheck) }}
+          @if (e.lastResult) { ({{ e.lastResult.reason }}): {{ e.lastResult.message }} }
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="label">Update channel</div>
+        <div class="hint">
+          "Nightly" gets YouTube fixes days earlier but is less tested. Even on "Stable", MuseHik tries the nightly
+          build when a download breaks and stable has no fix yet.
+        </div>
+      </div>
+      <div class="choices" role="radiogroup" aria-label="Update channel">
+        @for (c of channels; track c.value) {
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="e.channel === c.value"
+            [attr.aria-checked]="e.channel === c.value"
+            [disabled]="e.updating"
+            (click)="setChannel(c.value)"
+          >
+            {{ c.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (e.youtubeBlockedUntil) {
+      <p class="error">
+        YouTube is currently blocking this computer. MuseHik will not ask it anything until
+        {{ when(e.youtubeBlockedUntil) }}.
+      </p>
+    }
+  }
+</section>

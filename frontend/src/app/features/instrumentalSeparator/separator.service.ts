@@ -2,7 +2,8 @@ import { Injectable, signal } from '@angular/core';
 import { API, Track } from '../../core/api';
 
 export type SeparationMethod = { id: string; name: string; summary: string; description: string };
-export type SeparationResult = { method: string; size: number; createdAt: string };
+/** A finished instrumental. `file` is its name in the music folder (it is also a song in the library). */
+export type SeparationResult = { method: string; size: number; createdAt: string; file: string };
 export type SeparationJob = {
   id: string;
   trackId: number;
@@ -62,10 +63,6 @@ export class SeparatorService {
 
   audioUrl(track: Track, method: string, version = ''): string {
     return `${API}/separator/tracks/${track.id}/${method}/audio${version ? `?v=${encodeURIComponent(version)}` : ''}`;
-  }
-
-  downloadUrl(track: Track, method: string): string {
-    return `${API}/separator/tracks/${track.id}/${method}/audio?download=1`;
   }
 
   /** The active (queued/running) job of a song, if any. */

@@ -60,3 +60,57 @@
   color: var(--on-accent);
   background: var(--accent);
 }
+
+.group + .group {
+  margin-top: 16px;
+}
+
+.group .row + .row {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.intro {
+  margin: 0 0 14px;
+  line-height: 1.4;
+}
+
+.hint.bad,
+.error {
+  color: var(--danger);
+}
+
+.error {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action {
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.action.secondary {
+  color: var(--text-strong);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+}
+
+.action:disabled,
+.choice:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

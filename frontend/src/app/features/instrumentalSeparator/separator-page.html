@@ -80,7 +80,7 @@
           <span class="result-name">{{ methodName(r.method) }}</span>
           <audio controls preload="none" [src]="separator.audioUrl(track, r.method, r.createdAt)" (play)="onPreviewPlay($event)"></audio>
           <span class="result-actions">
-            <a class="link" [href]="separator.downloadUrl(track, r.method)" download>Download</a>
+            <span class="saved" [title]="r.file">Saved in your music folder</span>
             <button type="button" class="link" (click)="remove(r.method)">Delete</button>
           </span>
         </div>

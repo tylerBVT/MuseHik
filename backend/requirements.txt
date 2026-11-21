@@ -1,2 +1,4 @@
-yt-dlp==2026.10.26
+# A minimum, not a pin: MuseHik keeps yt-dlp up to date by itself (modules/musicDownloader/updater.mjs).
+# [default] includes yt-dlp-ejs, the YouTube challenge solver, in the version that matches yt-dlp.
+yt-dlp[default]>=2026.10.26
 imageio-ffmpeg==0.8.1

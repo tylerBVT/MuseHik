@@ -10,6 +10,8 @@ import { outputDir, python } from './core/config.mjs';
 import { scanLibrary } from './core/library.mjs';
 import { serveStatic } from './core/static.mjs';
 import * as musicDownloader from './modules/musicDownloader/routes.mjs';
+import { startAutoUpdates } from './modules/musicDownloader/updater.mjs';
+import { moveOldResults } from './modules/instrumentalSeparator/jobs.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
 import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 
@@ -50,11 +52,13 @@ export const server = http.createServer(async (req, res) => {
 /** Scans the library, then listens. Resolves with the address once the server is up. */
 export async function start() {
   if (!existsSync(python)) console.warn(`Python venv missing at ${python}`);
+  await moveOldResults().catch(e => console.error('Could not move old instrumentals:', e.message));
   const scan = await scanLibrary();
   console.log(`Library: ${scan.total} tracks (${scan.added} new, ${scan.removed} removed)`);
   await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${port}`;
   console.log(`Server on ${url}, saving to ${outputDir}`);
+  startAutoUpdates(); // yt-dlp: daily background update check
   return url;
 }
 

@@ -24,7 +24,18 @@ export function scoreCandidate(track, cand) {
 }
 
 export function bestMatch(track, candidates) {
-  return [...candidates].sort((a, b) => scoreCandidate(track, b) - scoreCandidate(track, a))[0];
+  return rankMatches(track, candidates, 1)[0];
+}
+
+/**
+ * Candidates best-first, keeping only plausible ones (some title match, length not far off), at most `max`.
+ * The best candidate is always kept, so a search never comes back empty-handed when it found something.
+ */
+export function rankMatches(track, candidates, max = 3) {
+  const scored = candidates.map(c => ({ c, score: scoreCandidate(track, c) })).sort((a, b) => b.score - a.score);
+  const plausible = scored.filter(({ c, score }, i) =>
+    i === 0 || (score >= 4 && (!track.duration || !c.duration || Math.abs(track.duration - c.duration) <= 20)));
+  return plausible.slice(0, max).map(({ c }) => c);
 }
 
 /** Flat library file name (without extension): "Artist - Title". */
@@ -42,3 +53,42 @@ export const trackKey = (artist, title) =>
 
 /** True when two durations (seconds) are compatible; unknown durations never block a match. */
 export const sameLength = (a, b, tolerance = 6) => !a || !b || Math.abs(a - b) <= tolerance;
+
+// ---- Loose identity: the same song uploaded differently ("PLK - Décembre | A COLORS SHOW" by COLORS,
+// "Décembre - A COLORS SHOW" by "PLK, COLORS", "Décembre" by PLK). Only used together with a matching duration.
+const NOISE = String.raw`official|officiel+e?|music|video|vid[eé]o|clip|audio|lyrics?|paroles|visuali[sz]er|hd|hq|4k|remaster(?:ed)?|colors\s+show`;
+const noiseOnly = new RegExp(String.raw`^(?:\s|a\b|the\b|(?:${NOISE})\b)+$`, 'i');
+
+/** Removes upload decorations: "(Official Video)", "[Clip Officiel]", "| A COLORS SHOW", "- Lyrics". */
+export function cleanUploadTitle(title) {
+  let t = String(title || '').split(/\s[|｜]\s/)[0];
+  t = t.replace(/[(\[]([^)\]]*)[)\]]/g, (all, inner) => (noiseOnly.test(inner) ? '' : all));
+  const parts = t.split(/\s[-–—]\s/);
+  while (parts.length > 1 && noiseOnly.test(parts.at(-1))) parts.pop();
+  return parts.join(' - ').trim();
+}
+
+const artistNames = a => String(a || '')
+  .replace(/\s-\sTopic$/i, '').replace(/vevo$/i, '')
+  .split(/,|&|\bx\b|\bet\b|\band\b|\bfeat\.?\b|\bft\.?\b|\bwith\b/i)
+  .map(s => words(s).join(' ')).filter(Boolean);
+
+/** All plausible (artists, title) readings of an upload, e.g. "PLK - Décembre" by COLORS also reads as PLK / Décembre. */
+export function readings(artist, title) {
+  const core = cleanUploadTitle(title);
+  const out = [{ artists: artistNames(artist), title: words(stripFeat(core)).join(' ') }];
+  const m = core.match(/^(.+?)\s[-–—]\s(.+)$/);
+  if (m) out.push({ artists: artistNames(m[1]), title: words(stripFeat(m[2])).join(' ') });
+  return out.filter(r => r.title);
+}
+
+/**
+ * True when two tracks are very likely the same recording: a reading with the same title, at least one
+ * shared artist, and durations within `tolerance` seconds (both durations must be known).
+ */
+export function sameSong(a, b, tolerance = 4) {
+  if (!a.duration || !b.duration || Math.abs(a.duration - b.duration) > tolerance) return false;
+  const rb = readings(b.artist, b.title);
+  return readings(a.artist, a.title).some(x => rb.some(y =>
+    x.title === y.title && x.artists.some(name => y.artists.includes(name))));
+}

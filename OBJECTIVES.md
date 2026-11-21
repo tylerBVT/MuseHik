@@ -175,7 +175,7 @@ the voice (falls to silence when he stops). **Not yet judged by ear.**
 ### Next
 - [ ] Listen and compare the three on several songs (owner).
 - [ ] Score with an official instrumental (SDR, museval) to tune: which models, Average vs Max/Min Spec, overlap.
-- [ ] Player switch original / instrumental (needs a result to exist; results are in MuseHikData/instrumentals).
+- [ ] Player switch original / instrumental (needs a result to exist; results are in the music folder as "<song> (Instrumental).mp3").
 
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.

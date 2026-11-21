@@ -35,6 +35,10 @@ def encode(ffmpeg: str, wave: np.ndarray, out_path: str, tags_from: str | None =
         cmd += ["-c:a", "libmp3lame", "-b:a", "320k", "-id3v2_version", "3"]
         if title:
             cmd += ["-metadata", f"title={title}"]
+        if tags_from:
+            # The ISRC names the original recording; an instrumental is a different one. Keeping it would make the
+            # downloader think the instrumental IS the song ("already in your library").
+            cmd += ["-metadata", "isrc=", "-metadata", "TSRC="]
         cmd += [out_path]
     subprocess.run(cmd, input=pcm, check=True, capture_output=True)
 
