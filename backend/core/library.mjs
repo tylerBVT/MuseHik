@@ -33,6 +33,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS tracks_isrc ON tracks(isrc);
   CREATE INDEX IF NOT EXISTS tracks_source ON tracks(source);
 `);
+// added_ms: when the file appeared on this laptop (its creation time), i.e. the download date. Kept when the file
+// is read again; filled in for songs indexed before it existed.
+if (!db.prepare('PRAGMA table_info(tracks)').all().some(c => c.name === 'added_ms')) {
+  db.exec('ALTER TABLE tracks ADD COLUMN added_ms INTEGER');
+}
 
 const q = {
   byPath: db.prepare('SELECT * FROM tracks WHERE path = ?'),
@@ -42,13 +47,15 @@ const q = {
   byKey: db.prepare('SELECT * FROM tracks WHERE key = ?'),
   byDuration: db.prepare('SELECT * FROM tracks WHERE duration BETWEEN ? AND ?'),
   upsert: db.prepare(`
-    INSERT INTO tracks (path, title, artist, album, duration, isrc, key, source, size, mtime_ms)
-    VALUES (@path, @title, @artist, @album, @duration, @isrc, @key, @source, @size, @mtime_ms)
+    INSERT INTO tracks (path, title, artist, album, duration, isrc, key, source, size, mtime_ms, added_ms)
+    VALUES (@path, @title, @artist, @album, @duration, @isrc, @key, @source, @size, @mtime_ms, @added_ms)
     ON CONFLICT(path) DO UPDATE SET title=@title, artist=@artist, album=@album, duration=@duration,
-      isrc=@isrc, key=@key, source=COALESCE(@source, source), size=@size, mtime_ms=@mtime_ms`),
+      isrc=@isrc, key=@key, source=COALESCE(@source, source), size=@size, mtime_ms=@mtime_ms,
+      added_ms=COALESCE(added_ms, @added_ms)`),
+  setAdded: db.prepare('UPDATE tracks SET added_ms = ? WHERE path = ?'),
   remove: db.prepare('DELETE FROM tracks WHERE path = ?'),
-  all: db.prepare('SELECT id, title, artist, album, duration, size FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE'),
-  paths: db.prepare('SELECT path, size, mtime_ms FROM tracks'),
+  all: db.prepare('SELECT id, title, artist, album, duration, size, added_ms FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE'),
+  paths: db.prepare('SELECT path, size, mtime_ms, added_ms FROM tracks'),
   count: db.prepare('SELECT COUNT(*) AS n FROM tracks'),
 };
 
@@ -67,6 +74,7 @@ export async function readTags(path) {
     isrc: common.isrc?.[0] || null,
     key: trackKey(artist, title),
     size: info.size, mtime_ms: Math.floor(info.mtimeMs),
+    added_ms: Math.floor(info.birthtimeMs || info.mtimeMs),
   };
 }
 
@@ -88,7 +96,10 @@ export async function scanLibrary() {
       const old = known.get(path);
       known.delete(path);
       const info = await stat(path);
-      if (old && old.size === info.size && old.mtime_ms === Math.floor(info.mtimeMs)) continue;
+      if (old && old.size === info.size && old.mtime_ms === Math.floor(info.mtimeMs)) {
+        if (old.added_ms == null) q.setAdded.run(Math.floor(info.birthtimeMs || info.mtimeMs), path);
+        continue;
+      }
       q.upsert.run({ source: null, ...(await readTags(path)) });
       added++;
     }
@@ -133,7 +144,9 @@ export async function duplicateOfFile(path) {
   return findDuplicate(tags, path);
 }
 
-export const listTracks = () => q.all.all();
+/** Every song, with `addedAt`: when its file appeared on this laptop (ISO date, or null when unknown). */
+export const listTracks = () => q.all.all().map(({ added_ms, ...track }) =>
+  ({ ...track, addedAt: added_ms == null ? null : new Date(added_ms).toISOString() }));
 export const getTrack = id => q.byId.get(id);
 export const hasPath = path => Boolean(q.byPath.get(path));
 
