@@ -78,7 +78,8 @@
       {
         "provider": "github",
         "owner": "tylerBVT",
-        "repo": "MuseHik"
+        "repo": "MuseHik",
+        "releaseType": "release"
       }
     ]
   }
