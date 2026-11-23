@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:net';
 import { openPage, wait } from './cdp.mjs';
 import { startFtp } from './ftp-fixture.mjs';
+import { makeMp3 } from './mp3-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-ui-cloud-'));
 const realConfig = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -126,6 +127,28 @@ try {
   await click('app-cloud-page .action.danger', 'Click again');
   check('the second click deletes it', await page.waitFor(`document.querySelectorAll('app-cloud-page app-library-list .row').length === 2`));
   check('the cloud agrees', (await songs()).length === 2);
+
+  // A song put in songs/ by hand (FileZilla) shows up; the list sorts by date and shows it.
+  writeFileSync(join(ftp.root, 'music', 'songs', 'Hand Artist - Hand Song.mp3'), makeMp3({ title: 'Hand Song', artist: 'Hand Artist' }));
+  await q(`location.href = ${JSON.stringify(APP)}`);
+  await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
+  await click('app-home .tile', 'Listen online');
+  check('a song added by hand shows on the Cloud page', await page.waitFor(`document.querySelectorAll('app-cloud-page app-library-list .row').length === 3`)
+    && (await q(`document.querySelector('app-cloud-page app-library-list').textContent.includes('Hand Song')`)));
+  await q(`(() => { const s = document.querySelector('app-cloud-page select[aria-label="Sort the songs"]'); s.value = 'newest'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  check('"Newest first" puts it on top', await page.waitFor(`document.querySelector('app-cloud-page .row .title')?.textContent.trim() === 'Hand Song'`),
+    await q(`document.querySelector('app-cloud-page .row .title')?.textContent.trim()`));
+  await q(`(() => { const s = document.querySelector('app-cloud-page select[aria-label="Show songs added"]'); s.value = '7'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  check('"Last 7 days" keeps all 3 (all added today)', await page.waitFor(`document.querySelectorAll('app-cloud-page app-library-list .row').length === 3`));
+  check('each row shows its date', (await q(`document.querySelectorAll('app-cloud-page .row .day').length`)) === 3);
+  await page.shot('cloud-7-sorted');
+
+  // The downloader offers "Also send to the cloud" now that the cloud is set up.
+  await q(`location.href = ${JSON.stringify(APP)}`);
+  await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
+  await q(`[...document.querySelectorAll('app-home .tile')].find(t => /download/i.test(t.textContent)).click()`);
+  check('the downloader shows "Also send to the cloud"', await page.waitFor(`document.querySelector('app-link-input .to-cloud')?.textContent.includes('Also send to the cloud')`));
+  await page.shot('cloud-8-downloader');
 
   // Shared playlists: make one from a library song + a cloud-only song, share it.
   const cloudPlaylists = () => JSON.parse(readFileSync(join(ftp.root, 'music', 'playlists.json'), 'utf8')).playlists;

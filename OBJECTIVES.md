@@ -181,7 +181,8 @@ the voice (falls to silence when he stops). **Not yet judged by ear.**
 Design: `docs/superpowers/specs/2026-11-21-cloud-design.md`. Module: `backend/modules/cloud/`, pages in `frontend/src/app/features/cloud/`.
 - FTP only (no HTTP, nothing installed on LWS). The `music` folder sits at the hosting root, outside every website.
   Cloud layout: `music/library.json` (index), `music/usage.json` (traffic per month, shared by both laptops), `music/songs/`.
-- Limits: 10 GB traffic per calendar month (her plan has 25 GB, her sites use 1-2 GB), 30 GB stored. Warning at 80 %, stop at 100 %.
+- Limits: 30 GB stored, warning at 80 %, stop at 100 %. Traffic is counted and shown, not limited (2026-11-23: her plan
+  has no traffic limit; the 10 GB/month cap was removed).
   Counted by the app (uploads, song fetches, the small JSON files), not by LWS.
 - Each laptop: settings in `backend/data/cloud.json`, cache of played songs in `MuseHikData/cloudCache` (2 GB, least recently played removed first).
   A cloud song that is also in the local library plays from the local file (free). The next song is fetched at half time.
@@ -197,6 +198,14 @@ Design: `docs/superpowers/specs/2026-11-21-shared-playlists-design.md`.
 - Sharing uploads the playlist's songs the cloud lacks; later additions upload at the next sync (start, every
   5 min, home page open, 2 s after a change). The editor also lists cloud songs not on this laptop.
 - Settings > Cloud > Your name: shown on shared playlists ("from Tyler").
+
+### Cloud extras (built 2026-11-23, after the first real test)
+Design: `docs/superpowers/specs/2026-11-23-cloud-extras-design.md`.
+- Songs put in `music/songs/` by hand (FileZilla) show up when the Cloud page opens (name "Artist - Title.mp3"; real
+  tags filled in at first play); files deleted by hand leave the list. Uploads never overwrite a hand-added file.
+- Library and Cloud lists: sort (title, artist, newest, oldest) and filter (7 days, 30 days, 12 months); each row shows
+  its date (library: when the file appeared on this laptop; cloud: when it was uploaded).
+- Downloader: "Also send to the cloud" uploads the download's songs when it ends (waits if an upload is running).
 
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.
