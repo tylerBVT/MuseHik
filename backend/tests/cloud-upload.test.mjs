@@ -47,14 +47,17 @@ test('uploads, then skips the same songs on a second run', async () => {
   assert.equal(cloudIndex().songs.length, 2);
 });
 
-test('stops at the monthly limit', async () => {
+test('stops at the storage limit, never because of traffic', async () => {
   const paths = makeSongs(join(tmp, 'set2'), ['Limit - A', 'Limit - B', 'Limit - C']);
-  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: {} }));
-  const job = await finished(startUpload({ paths }, { ...ftp.settings, monthlyLimitGB: 0.00015 })); // 150 kB
+  const { monthKey } = await import('../modules/cloud/limits.mjs');
+  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: { [monthKey()]: { bytes: 900e9 } } }));
+  const stored = cloudIndex().songs.reduce((sum, s) => sum + s.size, 0);
+  const job = await finished(startUpload({ paths }, { ...ftp.settings, storageLimitGB: (stored + 150_000) / 1e9 }));
   assert.equal(job.state, 'done');
   assert.equal(job.uploaded.length, 1);
   assert.equal(job.failed.length, 2);
-  for (const item of job.failed) assert.match(item.reason, /^Cloud limit reached for /);
+  for (const item of job.failed) assert.match(item.reason, /^Not enough cloud storage/);
+  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: {} }));
 });
 
 test('cancel leaves no partial file', async () => {

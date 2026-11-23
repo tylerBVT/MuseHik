@@ -9,7 +9,6 @@
 import { coverOf } from '../../core/library.mjs';
 import { readJson, streamFile } from '../../core/http.mjs';
 import { fetchSong, localSource, touch } from './cache.mjs';
-import { LimitError } from './limits.mjs';
 import { testConnection } from './remote.mjs';
 import { isConfigured, loadSettings, publicSettings, saveSettings } from './settings.mjs';
 import { cloudStatus, lastIndex, rebuildIndex, withCloud } from './store.mjs';
@@ -90,7 +89,7 @@ export async function handle(req, { res, json, cors }) {
         if (here?.from === 'cache') touch(song);
         path = here?.path ?? await fetchSong(song);
       } catch (e) {
-        json(e instanceof LimitError ? 429 : 502, { error: e.message.replace(/^Cloud: /, '') });
+        json(502, { error: e.message.replace(/^Cloud: /, '') });
         return true;
       }
       await streamFile(req, res, path, cors);

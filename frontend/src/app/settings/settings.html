@@ -149,10 +149,6 @@
         <input type="text" autocomplete="off" [value]="f.folder" (input)="setCloud('folder', $any($event.target).value)" />
       </label>
       <label class="field small">
-        <span class="label">Monthly limit (GB)</span>
-        <input type="number" min="0.1" step="0.5" [value]="f.monthlyLimitGB" (input)="setCloud('monthlyLimitGB', +$any($event.target).value)" />
-      </label>
-      <label class="field small">
         <span class="label">Storage limit (GB)</span>
         <input type="number" min="0.1" step="1" [value]="f.storageLimitGB" (input)="setCloud('storageLimitGB', +$any($event.target).value)" />
       </label>

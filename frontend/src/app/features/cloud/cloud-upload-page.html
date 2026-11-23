@@ -161,8 +161,8 @@
 <footer class="send">
   <span>
     <strong>{{ selection().count }} {{ selection().count === 1 ? 'song' : 'songs' }}, {{ size(selection().bytes) }}</strong>
-    @if (leftThisMonth() !== null) {
-      <span class="muted"> · {{ size(leftThisMonth()!) }} left this month</span>
+    @if (freeStorage() !== null) {
+      <span class="muted"> · {{ size(freeStorage()!) }} free on the cloud</span>
     }
   </span>
   <button type="button" class="action" [disabled]="!canUpload()" (click)="upload()">Upload</button>

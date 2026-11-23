@@ -48,7 +48,7 @@ test('settings GET never returns the password', async () => {
   assert.ok(body.displayName, 'the name shown on shared playlists');
   assert.equal('password' in body, false);
   assert.equal(JSON.stringify(body).includes(ftp.settings.password), false);
-  const saved = await api('/settings', { method: 'PUT', body: { monthlyLimitGB: 10 } });
+  const saved = await api('/settings', { method: 'PUT', body: { storageLimitGB: 30 } });
   assert.equal(saved.status, 200);
   assert.equal('password' in saved.body, false);
 });
@@ -57,7 +57,7 @@ test('connection test and status', async () => {
   assert.deepEqual((await api('/test', { method: 'POST' })).body, { ok: true, secure: false });
   const { body } = await api('/status');
   assert.equal(body.configured, true);
-  assert.equal(body.limitBytes, 10e9);
+  assert.equal('limitBytes' in body, false);
   assert.equal(body.storageLimitBytes, 30e9);
 });
 
@@ -84,17 +84,16 @@ test('upload then list then stream with Range 206', async () => {
   assert.equal(again.body.songs.find(s => s.id === song.id).onLaptop, true, 'cached after the first play');
 });
 
-test('stream refuses with 429 at the limit', async () => {
+test('stream still works after lots of traffic this month', async () => {
   mkdirSync(join(ftp.root, 'music', 'songs'), { recursive: true });
   writeFileSync(join(ftp.root, 'music', 'songs', 'Far - Away.mp3'), Buffer.alloc(1000));
   await api('/rebuild', { method: 'POST' });
   const song = (await api('/songs')).body.songs.find(s => s.file === 'Far - Away.mp3');
   writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: { [monthKey()]: { bytes: 11e9 } } }));
-  const { status, body } = await api(`/songs/${song.id}/stream`);
-  assert.equal(status, 429);
-  assert.match(body.error, /^Cloud limit reached for /);
-  const statusNow = (await api('/status')).body;
-  assert.equal(statusNow.reached, true);
+  const response = await fetch(`${base}/songs/${song.id}/stream`);
+  assert.equal(response.status, 200);
+  assert.equal((await response.arrayBuffer()).byteLength, 1000);
+  assert.ok((await api('/status')).body.usedBytes >= 11e9, 'traffic is still counted');
   writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: {} }));
 });
 

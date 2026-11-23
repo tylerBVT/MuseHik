@@ -39,7 +39,7 @@ export async function startFtp({ user = 'test', password = 'secret' } = {}) {
     root,
     settings: {
       host: '127.0.0.1', port, user, password, folder: 'music',
-      monthlyLimitGB: 10, storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: true,
+      storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: true,
     },
     close: () => server.close().catch(() => {}),
   };

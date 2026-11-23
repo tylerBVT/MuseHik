@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { startFtp } from './ftp-fixture.mjs';
 
 process.env.CLOUD_SETTINGS = join(mkdtempSync(join(tmpdir(), 'cloud-store-')), 'cloud.json');
-const { LimitError, monthKey } = await import('../modules/cloud/limits.mjs');
+const { monthKey } = await import('../modules/cloud/limits.mjs');
 const { lastIndex, rebuildIndex, withCloud } = await import('../modules/cloud/store.mjs');
 
 let ftp;
@@ -61,12 +61,11 @@ function readCloudUsage() {
   try { return readCloud('usage.json').months[monthKey()].bytes; } catch { return 0; }
 }
 
-test('ensureRoom throws LimitError past the month limit', async () => {
+test('ensureRoom never refuses because of traffic (her hosting has no traffic limit)', async () => {
   const month = monthKey();
-  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: { [month]: { bytes: 9.99e9 } } }));
+  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: { [month]: { bytes: 500e9 } } }));
   await withCloud(async cloud => {
-    await assert.doesNotThrow(() => cloud.ensureRoom(1000));
-    await assert.rejects(async () => cloud.ensureRoom(2e7), e => e instanceof LimitError);
+    await cloud.ensureRoom(2e9);
   }, ftp.settings);
   writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: {} }));
 });

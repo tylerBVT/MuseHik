@@ -57,7 +57,7 @@ export function evict(limitBytes, keepId) {
 
 const inFlight = new Map(); // song id -> Promise<path>: one download per song, however many ask
 
-/** The cached file of a cloud song, downloading it first if needed (counts against the monthly traffic). */
+/** The cached file of a cloud song, downloading it first if needed (added to this month's traffic count). */
 export function fetchSong(song, settings = loadSettings()) {
   const ready = localSource(song); // in the local library (free) or already cached: no download
   if (ready) {
@@ -70,10 +70,7 @@ export function fetchSong(song, settings = loadSettings()) {
     const target = cachedFile(song);
     const part = `${target}.part`;
     try {
-      await withCloud(async cloud => {
-        await cloud.ensureRoom(song.size || 0);
-        await cloud.session.download(songPath(song), part);
-      }, settings);
+      await withCloud(cloud => cloud.session.download(songPath(song), part), settings);
       await rename(part, target);
     } catch (e) {
       await rm(part, { force: true });

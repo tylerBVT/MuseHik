@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { extname } from 'node:path';
 import { trackKey } from '../../core/lib.mjs';
-import { GB, checkStorage, checkTransfer, monthKey, usageSummary } from './limits.mjs';
+import { GB, checkStorage, monthKey, usageSummary } from './limits.mjs';
 import { openSession } from './remote.mjs';
 import { isConfigured, loadSettings, localFile } from './settings.mjs';
 
@@ -47,9 +47,8 @@ export async function withCloud(fn, settings = loadSettings()) {
     async storedBytes() {
       return (await readIndex()).songs.reduce((sum, s) => sum + (s.size || 0), 0);
     },
-    /** Throws a LimitError if moving `bytes` (and, with storage, keeping them) would break a budget. */
+    /** Throws a LimitError if keeping `bytes` more (`storage: true`) would pass the storage cap. Traffic is free. */
     async ensureRoom(bytes, { storage = false } = {}) {
-      checkTransfer({ usedBytes: usedBytes(), limitBytes: settings.monthlyLimitGB * GB, bytes });
       if (storage) checkStorage({ storedBytes: await cloud.storedBytes(), storageLimitBytes: settings.storageLimitGB * GB, bytes });
     },
     async addSong(entry) {

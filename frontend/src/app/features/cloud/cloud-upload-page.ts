@@ -64,14 +64,14 @@ export class CloudUploadPage implements OnInit, OnDestroy {
     return { trackIds: [], paths: rows.map((r) => r.path), count: rows.length, bytes: rows.reduce((s, r) => s + r.size, 0) };
   });
 
-  protected readonly leftThisMonth = computed(() => {
+  protected readonly freeStorage = computed(() => {
     const s = this.cloud.status();
-    return s?.limitBytes !== undefined && s.usedBytes !== undefined ? Math.max(0, s.limitBytes - s.usedBytes) : null;
+    return s?.storageLimitBytes !== undefined && s.storedBytes !== undefined
+      ? Math.max(0, s.storageLimitBytes - s.storedBytes)
+      : null;
   });
   protected readonly running = computed(() => this.job()?.state === 'running');
-  protected readonly canUpload = computed(
-    () => this.selection().count > 0 && !this.running() && !this.busy() && !this.cloud.status()?.reached,
-  );
+  protected readonly canUpload = computed(() => this.selection().count > 0 && !this.running() && !this.busy());
   protected readonly percent = computed(() => {
     const job = this.job();
     return job && job.bytesTotal ? Math.round((job.bytesDone / job.bytesTotal) * 100) : 0;

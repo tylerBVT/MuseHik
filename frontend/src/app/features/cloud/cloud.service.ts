@@ -6,7 +6,6 @@ export type CloudSettings = {
   port: number;
   user: string;
   folder: string;
-  monthlyLimitGB: number;
   storageLimitGB: number;
   cacheLimitGB: number;
   allowPlainFtp: boolean;
@@ -17,19 +16,17 @@ export type CloudSettings = {
   displayName: string;
 };
 
-/** GET /api/cloud/status: what the usage bars show. */
+/** GET /api/cloud/status: what the usage bar shows. `percent` and `warning` are about storage. */
 export type CloudStatus = {
   configured: boolean;
   error?: string;
   month?: string;
+  /** Traffic this month (only shown: the hosting has no traffic limit). */
   usedBytes?: number;
-  limitBytes?: number;
   percent?: number;
   warning?: boolean;
-  reached?: boolean;
   storedBytes?: number;
   storageLimitBytes?: number;
-  message?: string | null;
 };
 
 export type CloudSong = {

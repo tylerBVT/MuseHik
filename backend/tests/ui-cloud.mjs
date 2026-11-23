@@ -77,7 +77,7 @@ try {
   await q(`history.back()`);
   await page.waitFor(`document.querySelector('app-home')`);
   await click('app-home .tile', 'Cloud upload');
-  check('usage bar shows this month', await page.waitFor(`document.querySelector('app-cloud-usage')?.textContent.includes('This month')`));
+  check('usage bar shows storage and this month', await page.waitFor(`document.querySelector('app-cloud-usage')?.textContent.includes('Moved this month')`));
   await page.waitFor(`document.querySelectorAll('app-cloud-upload-page .song').length === 1`);
   await q(`document.querySelector('app-cloud-upload-page .song input').click()`);
   check('summary counts the ticked song', (await q(`document.querySelector('app-cloud-upload-page .send').textContent`)).includes('1 song,'));
