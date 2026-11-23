@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject } from '@angular/core';
 import { NavService } from '../../core/nav.service';
 import { CloudService, formatSize } from './cloud.service';
 
-/** This month's cloud traffic as a bar (10 GB budget by default), plus the storage used. */
+/** Cloud storage used as a bar (30 GB by default). Traffic is not counted: the hosting has no traffic limit. */
 @Component({
   selector: 'app-cloud-usage',
   styles: `
@@ -66,33 +66,30 @@ import { CloudService, formatSize } from './cloud.service';
       @if (!s.configured) {
         <span class="muted">The cloud is not set up yet. </span>
         <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Open Settings</button>
+      } @else if (s.online === false) {
+        <span class="muted">The cloud is offline on this laptop. Songs already on it still play. </span>
+        <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Turn it on in Settings</button>
       } @else if (s.error) {
         <span class="message" role="alert">{{ s.error }}</span>
       } @else {
         <div class="line">
           <span
-            >This month: <strong>{{ size(s.usedBytes ?? 0) }}</strong> of {{ size(s.limitBytes ?? 0) }}</span
+            >Stored: <strong>{{ size(s.storedBytes ?? 0) }}</strong> of {{ size(s.storageLimitBytes ?? 0) }}</span
           >
           <strong>{{ s.percent }} %</strong>
         </div>
         <div
           class="bar"
           role="progressbar"
-          aria-label="Cloud traffic used this month"
+          aria-label="Cloud storage used"
           aria-valuemin="0"
           aria-valuemax="100"
           [attr.aria-valuenow]="s.percent"
         >
-          <div class="fill" [class.warning]="s.warning" [class.reached]="s.reached" [style.width.%]="s.percent"></div>
+          <div class="fill" [class.warning]="s.warning" [class.reached]="(s.percent ?? 0) >= 100" [style.width.%]="s.percent"></div>
         </div>
-        <div class="line muted">
-          <span>Stored: {{ size(s.storedBytes ?? 0) }} of {{ size(s.storageLimitBytes ?? 0) }}</span>
-          @if (s.warning && !s.reached) {
-            <span>Over 80 % of this month's budget used.</span>
-          }
-        </div>
-        @if (s.message) {
-          <p class="message" role="alert">{{ s.message }}</p>
+        @if (s.warning) {
+          <div class="line muted">Over 80 % of the cloud storage used.</div>
         }
       }
     } @else {

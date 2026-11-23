@@ -18,7 +18,7 @@ test('round trip upload, list, download, rename, remove', async () => {
   try {
     await s.upload(src, 'songs/A - B.part.mp3');
     await s.rename('songs/A - B.part.mp3', 'songs/A - B.mp3');
-    assert.deepEqual(await s.list('songs'), [{ name: 'A - B.mp3', size: 5000 }]);
+    assert.deepEqual((await s.list('songs')).map(({ name, size }) => ({ name, size })), [{ name: 'A - B.mp3', size: 5000 }]);
     assert.ok(existsSync(join(ftp.root, 'music', 'songs', 'A - B.mp3')), 'lands inside the cloud folder');
     const back = join(local, 'back.mp3');
     await s.download('songs/A - B.mp3', back);
@@ -42,15 +42,22 @@ test('list of a folder that does not exist is empty', async () => {
   try { assert.deepEqual(await s.list('nowhere'), []); } finally { await s.close(); }
 });
 
-test('bytes counts uploads and downloads', async () => {
+test('size, progress, and ping', async () => {
   const src = join(local, 'count.mp3');
   writeFileSync(src, Buffer.alloc(3000, 1));
   const s = await openSession(ftp.settings);
   try {
-    await s.upload(src, 'songs/count.mp3');
-    assert.ok(s.bytes >= 3000, `after upload: ${s.bytes}`);
-    await s.download('songs/count.mp3', join(local, 'count-back.mp3'));
-    assert.ok(s.bytes >= 6000, `after download: ${s.bytes}`);
+    let sent = 0;
+    await s.upload(src, 'songs/count.mp3', { onBytes: n => { sent = n; } });
+    assert.equal(sent, 3000);
+    assert.equal(await s.size('songs/count.mp3'), 3000);
+    let received = 0;
+    await s.download('songs/count.mp3', join(local, 'count-back.mp3'), { onBytes: n => { received = n; } });
+    assert.equal(received, 3000);
+    const before = s.lastOk;
+    await new Promise(r => setTimeout(r, 5));
+    await s.ping();
+    assert.ok(s.lastOk > before, 'a working call updates lastOk');
   } finally { await s.close(); }
 });
 

@@ -2,9 +2,12 @@
 // The cache lives outside the project (heavyDir, not synced by OneDrive) and is capped in size: when it is full,
 // the song played the longest time ago goes first. Files never expire by age: cloud songs never change.
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { rename, rm, stat } from 'node:fs/promises';
+import { open, rename, rm, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { Writable } from 'node:stream';
+import { parseFile } from 'music-metadata';
 import { heavyDir } from '../../core/config.mjs';
+import { trackKey } from '../../core/lib.mjs';
 import { db, findDuplicate } from '../../core/library.mjs';
 import { GB } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
@@ -55,34 +58,87 @@ export function evict(limitBytes, keepId) {
   }
 }
 
-const inFlight = new Map(); // song id -> Promise<path>: one download per song, however many ask
+/**
+ * A song added by hand is listed with what its file name says and no length. Once it is on this laptop, its own tags
+ * are read and written to the shared list (never fatal: the song plays either way).
+ */
+async function fillTags(cloud, song, path) {
+  try {
+    const { common, format } = await parseFile(path, { duration: true, skipCovers: true });
+    const patch = { duration: format.duration || 0 };
+    if (common.title) patch.title = common.title;
+    if (common.artist) patch.artist = common.artist;
+    if (common.album) patch.album = common.album;
+    if (common.isrc?.[0]) patch.isrc = common.isrc[0];
+    patch.key = trackKey(patch.artist ?? song.artist, patch.title ?? song.title);
+    await cloud.updateSong(song.id, patch);
+  } catch (e) {
+    console.error(`Could not read the tags of "${song.file}":`, e.message);
+  }
+}
 
-/** The cached file of a cloud song, downloading it first if needed (counts against the monthly traffic). */
+const inFlight = new Map(); // song id -> Download: one download per song, however many ask
+
+/**
+ * Starts downloading a cloud song into the cache (or joins the download already running) and returns it at once,
+ * so it can be played while it downloads (core/http.mjs streamGrowing):
+ *   { path (the .part file), target, size (exact, from the server; 0 if unknown), written (bytes on disk), done, error,
+ *     ready (resolves once the size is known, or it ended), promise (the cached file, tags read), changed() }
+ * The download goes on if the listener leaves: the finished file is the song's cached copy.
+ */
+export function startFetch(song, settings = loadSettings()) {
+  const running = inFlight.get(song.id);
+  if (running) return running;
+  const target = cachedFile(song);
+  let wake = [];
+  const notify = () => { const waiting = wake; wake = []; for (const resolve of waiting) resolve(); };
+  let markReady;
+  const dl = {
+    id: song.id, path: `${target}.part`, target, size: 0, written: 0, done: false, error: null,
+    ready: new Promise(resolve => { markReady = resolve; }),
+    changed: () => new Promise(resolve => { wake.push(resolve); setTimeout(resolve, 250).unref?.(); }),
+  };
+  dl.promise = (async () => {
+    mkdirSync(cacheDir, { recursive: true });
+    const file = await open(dl.path, 'w');
+    try {
+      await withCloud(async cloud => {
+        dl.size = await cloud.session.size(songPath(song)).catch(() => 0);
+        markReady();
+        // Counts the bytes really on disk, so a reader never asks for bytes not written yet.
+        const sink = new Writable({
+          write(chunk, _encoding, done) {
+            file.write(chunk).then(() => { dl.written += chunk.length; notify(); done(); }, done);
+          },
+        });
+        await cloud.session.download(songPath(song), sink);
+      }, settings);
+      await file.close();
+      await rename(dl.path, target);
+    } catch (e) {
+      await file.close().catch(() => {});
+      await rm(dl.path, { force: true });
+      throw e;
+    }
+    cq.put.run(song.id, target, (await stat(target)).size, tick());
+    evict(settings.cacheLimitGB * GB, song.id);
+    dl.done = true;
+    notify();
+    // A song added by hand has no length yet: read its tags now that it is here (the song already plays).
+    if (!song.duration) await withCloud(cloud => fillTags(cloud, song, target), settings).catch(() => {});
+    return target;
+  })();
+  dl.promise.catch(e => { dl.error = e; notify(); markReady(); }).finally(() => inFlight.delete(song.id));
+  inFlight.set(song.id, dl);
+  return dl;
+}
+
+/** The file of a cloud song: the library copy, the cached copy, or (after downloading it) a new cached copy. */
 export function fetchSong(song, settings = loadSettings()) {
   const ready = localSource(song); // in the local library (free) or already cached: no download
   if (ready) {
     if (ready.from === 'cache') touch(song);
     return Promise.resolve(ready.path);
   }
-  if (inFlight.has(song.id)) return inFlight.get(song.id);
-  const job = (async () => {
-    mkdirSync(cacheDir, { recursive: true });
-    const target = cachedFile(song);
-    const part = `${target}.part`;
-    try {
-      await withCloud(async cloud => {
-        await cloud.ensureRoom(song.size || 0);
-        await cloud.session.download(songPath(song), part);
-      }, settings);
-      await rename(part, target);
-    } catch (e) {
-      await rm(part, { force: true });
-      throw e;
-    }
-    cq.put.run(song.id, target, (await stat(target)).size, tick());
-    evict(settings.cacheLimitGB * GB, song.id);
-    return target;
-  })().finally(() => inFlight.delete(song.id));
-  inFlight.set(song.id, job);
-  return job;
+  return startFetch(song, settings).promise;
 }

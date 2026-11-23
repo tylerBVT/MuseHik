@@ -1,5 +1,7 @@
-import { Component, computed, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { API } from '../../../core/api';
+import { NavService } from '../../../core/nav.service';
+import { CloudService, cloudOnline } from '../../cloud/cloud.service';
 
 type Toast = { kind: 'info' | 'success' | 'error'; text: string };
 
@@ -44,6 +46,10 @@ export type Job = {
   detail?: string;
   startedAt?: string;
   finishedAt?: string;
+  /** Started from "Download to cloud". */
+  cloudOnly?: boolean;
+  /** Set when a "Download to cloud" ended: how many songs went to the upload. */
+  cloud?: { songs: number; jobId?: string; queued?: boolean; error?: string };
 };
 
 const POLL_MS = 1000;
@@ -63,6 +69,8 @@ export const badgeOf = (job: Job): { label: string; tone: string } =>
   styleUrl: './link-input.css',
 })
 export class LinkInput {
+  /** "Download to cloud": the songs go to the cloud and leave this laptop once they are there. */
+  readonly cloudOnly = input(false);
   protected readonly link = signal('');
   protected readonly downloading = signal(false);
   protected readonly toast = signal<Toast | null>(null);
@@ -77,14 +85,19 @@ export class LinkInput {
   readonly finished = output<void>();
 
   protected readonly badge = badgeOf;
+  protected readonly nav = inject(NavService);
+  private readonly cloud = inject(CloudService);
+  /** The cloud is set up and Online on this laptop ("Download to cloud" needs it). */
+  protected readonly cloudReady = computed(() => cloudOnline(this.cloud.settings()));
 
   constructor() {
     void this.loadHistory();
     void this.resumeRunning();
+    this.cloud.getSettings().catch(() => {}); // later changes in Settings update cloud.settings()
   }
 
   protected readonly canDownload = computed(
-    () => this.link().trim().length > 0 && !this.downloading(),
+    () => this.link().trim().length > 0 && !this.downloading() && (!this.cloudOnly() || this.cloudReady()),
   );
   /** 0-100, or null while the playlist length is still unknown (shows a moving "busy" bar). */
   protected readonly percent = computed(() => {
@@ -118,7 +131,7 @@ export class LinkInput {
       const start = await fetch(`${API}/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, cloudOnly: this.cloudOnly() }),
       });
       const started = await start.json();
       if (!start.ok) throw new Error(started.error ?? `Server error ${start.status}`);

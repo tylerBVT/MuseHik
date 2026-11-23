@@ -11,12 +11,16 @@ export const localFile = name => join(dirname(file()), name);
 
 export const DEFAULTS = Object.freeze({
   host: '', port: 21, user: '', password: '', folder: 'music', name: '',
-  monthlyLimitGB: 10, storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
+  storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
+  // Offline: this laptop never connects to the cloud (songs already on it still play).
+  online: true,
 });
 
 export function loadSettings() {
   try {
-    return { ...DEFAULTS, ...JSON.parse(readFileSync(file(), 'utf8')) };
+    // monthlyLimitGB: an old setting (the hosting has no traffic limit), dropped from files saved before.
+    const { monthlyLimitGB, ...saved } = JSON.parse(readFileSync(file(), 'utf8'));
+    return { ...DEFAULTS, ...saved };
   } catch (e) {
     if (e.code === 'ENOENT') return { ...DEFAULTS };
     throw new Error(`The cloud settings file is damaged (${file()}): ${e.message}`);
@@ -37,10 +41,10 @@ export function saveSettings(patch) {
   if (next.name.length > 40) throw new Error('Your name is too long (40 characters max).');
   if (patch.password) next.password = String(patch.password);
   if (patch.port !== undefined) next.port = positive(patch.port, 'Port');
-  if (patch.monthlyLimitGB !== undefined) next.monthlyLimitGB = positive(patch.monthlyLimitGB, 'Monthly limit');
   if (patch.storageLimitGB !== undefined) next.storageLimitGB = positive(patch.storageLimitGB, 'Storage limit');
   if (patch.cacheLimitGB !== undefined) next.cacheLimitGB = positive(patch.cacheLimitGB, 'Cache size');
   if (patch.allowPlainFtp !== undefined) next.allowPlainFtp = Boolean(patch.allowPlainFtp);
+  if (patch.online !== undefined) next.online = Boolean(patch.online);
   next.folder = next.folder.replace(/^\/+|\/+$/g, '');
   if (!next.folder || next.folder.split('/').some(part => !part || part === '.' || part === '..'))
     throw new Error('The cloud folder must be a plain folder name like "music".');
@@ -55,3 +59,8 @@ export function publicSettings(settings) {
 }
 
 export const isConfigured = s => Boolean(s.host && s.user && s.password);
+
+/** Set up, and allowed to connect on this laptop (the Online / Offline switch in Settings). */
+export const isOnline = s => isConfigured(s) && s.online !== false;
+
+export const OFFLINE_MESSAGE = 'The cloud is offline on this laptop. Turn it on in Settings.';

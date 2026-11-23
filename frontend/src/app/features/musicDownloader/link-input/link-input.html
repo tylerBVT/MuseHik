@@ -1,9 +1,21 @@
 <section class="card">
-  <h1>Download from a link</h1>
+  <h1>{{ cloudOnly() ? 'Download to the cloud' : 'Download from a link' }}</h1>
   <p class="help">
     Paste a link from <strong>YouTube</strong>, <strong>Spotify</strong> or <strong>Deezer</strong>
     (a track, an album or a whole playlist). The platform is detected from the link.
   </p>
+  @if (cloudOnly()) {
+    <p class="help">
+      The songs go to the cloud, then are deleted from this laptop. Songs the cloud already has are skipped; songs
+      already in your library are sent from it (and stay there).
+    </p>
+    @if (!cloudReady()) {
+      <p class="failed">
+        The cloud is not set up, or is offline on this laptop.
+        <button type="button" class="small secondary" (click)="nav.go({ page: 'settings' })">Open Settings</button>
+      </p>
+    }
+  }
 
   <label for="music-link">Music or playlist link</label>
   <input
@@ -17,7 +29,7 @@
   />
 
   <button type="button" [disabled]="!canDownload()" (click)="download()">
-    {{ downloading() ? 'Downloading...' : 'Download' }}
+    {{ downloading() ? 'Downloading...' : cloudOnly() ? 'Download to cloud' : 'Download' }}
   </button>
 
   @if (job(); as j) {
@@ -121,6 +133,18 @@
           <ul class="notes">
             @for (note of h.notes; track $index) { <li>{{ note }}</li> }
           </ul>
+        }
+
+        @if (h.cloud; as c) {
+          @if (c.error) {
+            <p class="failed">Could not send to the cloud: {{ c.error }}</p>
+          } @else {
+            <p class="cloud-line">
+              {{ c.queued ? 'Waiting to send' : 'Sending' }} {{ c.songs }} {{ c.songs === 1 ? 'song' : 'songs' }} to the
+              cloud{{ c.queued ? ' (after the upload already running)' : '' }}; new files leave this laptop once there.
+              <button type="button" class="small secondary" (click)="nav.go({ page: 'cloud-upload' })">See the upload</button>
+            </p>
+          }
         }
 
         @if (h.notTried?.length) {

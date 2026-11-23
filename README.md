@@ -22,7 +22,8 @@ Spotify link                                   IN PROGRESS          todo        
 | Short term | **Downloader**: YouTube / Spotify / Deezer link -> tagged MP3 in the library (yt-dlp + ffmpeg) | Done |
 | Short term | **Player + library**: SQLite index, search, playlists, mini + full-screen player, media keys | Done |
 | Short term | **Instrumental separation**: MP3 in -> best possible instrumental MP3 out (RoFormer / Demucs models, ensembles) | **First version, testing**: pick a song + Fast / Best quality / Keep backing vocals, progress bar, listen, compare, download. Engine: RoFormer models + MSST TTA + UVR ensembles + karaoke-gen backing vocals ([module README](backend/modules/instrumentalSeparator/README.md)) |
-| Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting over FTP; listen from any laptop; 10 GB/month traffic and 30 GB storage limits with a usage bar | **Done, tested on a local FTP server**; not yet tried against the real hosting ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
+| Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting over FTP; listen from any laptop; 30 GB storage limit with a usage bar; songs put in `music/songs/` with FileZilla show up; sort and filter by date | **Done, works on the real hosting** (first test 2026-11-23) ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
+| Short term | **Cloud, live**: songs start while they download; one kept-open connection for listening, one for transfers; Online/Offline switch per laptop (Offline never connects); ⋮ menu on every song (rename, genre, delete); Download to cloud; Download from cloud | **Built, tested on a local FTP server** ([design](docs/superpowers/specs/2026-11-23-cloud-live-design.md)) |
 | Short term | **Shared playlists**: a Shared switch puts a playlist (and its songs) on the cloud; the other laptop sees it as "from <name>". Playlists store songs by identity, so they survive re-downloads and work on any laptop | **Done**, tested on a local FTP server ([design](docs/superpowers/specs/2026-11-21-shared-playlists-design.md)) |
 | Short term | **Official instrumental lookup**: find an "(Instrumental)" release before falling back to AI separation | Todo |
 | Short term | Player switch **original / instrumental only** | Todo (needs the separator) |
@@ -40,7 +41,7 @@ Developer setup:
 - `frontend/`: Angular app, `npm install` then `npm start` (or built into `frontend/dist`, served by the backend).
 - Instrumental separator: its own Python venv (PyTorch CUDA) and the AI models live **outside OneDrive** in `C:\Users\<you>\MuseHikData\` (`separator-venv\`, `models\`), so gigabytes are not synced. Change it with `heavyDir` in `config.json` or the `MUSEHIK_HEAVY_DIR` env var.
   Install: `MuseHikData\separator-venv\Scripts\python.exe -m pip install --resume-retries 50 torch torchaudio --index-url https://download.pytorch.org/whl/cu128`
-- Cloud: fill in Settings > Cloud (FTP host, user, password, folder). Saved in `backend/data/cloud.json` (git-ignored). Played cloud songs are cached in `MuseHikData\cloudCache\` (2 GB). `node tests/ui-cloud.mjs` checks the cloud pages in Chrome against a throw-away FTP server.
+- Cloud: fill in Settings > Cloud (FTP host, user, password, folder). "Use the cloud on this laptop" off = Offline: no connection at all. Saved in `backend/data/cloud.json` (git-ignored). Played cloud songs are cached in `MuseHikData\cloudCache\` (2 GB). `node tests/ui-cloud.mjs` checks the cloud pages in Chrome against a throw-away FTP server.
 
 ## Code layout (by module)
 

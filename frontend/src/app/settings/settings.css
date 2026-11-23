@@ -149,3 +149,18 @@
   margin: 12px 0 0;
   color: var(--success);
 }
+
+.check.online {
+  align-items: flex-start;
+  padding: 12px;
+  font-size: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.check.online > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

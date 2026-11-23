@@ -64,6 +64,22 @@ export class Settings {
     this.cloudResult.set(null);
   }
 
+  /** The Online / Offline switch: saved at once (nothing else in the form is saved). */
+  protected async setOnline(online: boolean): Promise<void> {
+    this.cloudBusy.set(true);
+    this.cloudResult.set(null);
+    try {
+      const saved = await this.cloud.saveSettings({ online });
+      this.cloudForm.update((form) => (form ? { ...form, online: saved.online } : saved));
+      this.cloudResult.set({ ok: true, text: online ? 'The cloud is on for this laptop.' : 'The cloud is off for this laptop.' });
+      void this.cloud.loadStatus();
+    } catch (e) {
+      this.cloudResult.set({ ok: false, text: (e as Error).message });
+    } finally {
+      this.cloudBusy.set(false);
+    }
+  }
+
   /** Saves the form, then tries to connect with it. */
   protected async saveAndTestCloud(): Promise<void> {
     const form = this.cloudForm();

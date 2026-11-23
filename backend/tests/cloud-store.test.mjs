@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { startFtp } from './ftp-fixture.mjs';
 
 process.env.CLOUD_SETTINGS = join(mkdtempSync(join(tmpdir(), 'cloud-store-')), 'cloud.json');
-const { LimitError, monthKey } = await import('../modules/cloud/limits.mjs');
 const { lastIndex, rebuildIndex, withCloud } = await import('../modules/cloud/store.mjs');
 
 let ftp;
@@ -48,27 +47,12 @@ test('removeSong deletes the file and the entry', async () => {
   assert.deepEqual((await withCloud(c => c.session.list('songs'), ftp.settings)).map(f => f.name).includes('X - Gone.mp3'), false);
 });
 
-test('usage is added at the end of a session even after an error', async () => {
-  const before = readCloudUsage();
+test('an error inside withCloud reaches the caller and leaves the connection usable', async () => {
   await assert.rejects(withCloud(async cloud => {
     await cloud.index();
     throw new Error('boom');
   }, ftp.settings), /boom/);
-  assert.ok(readCloudUsage() > before, `${readCloudUsage()} > ${before}`);
-});
-
-function readCloudUsage() {
-  try { return readCloud('usage.json').months[monthKey()].bytes; } catch { return 0; }
-}
-
-test('ensureRoom throws LimitError past the month limit', async () => {
-  const month = monthKey();
-  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: { [month]: { bytes: 9.99e9 } } }));
-  await withCloud(async cloud => {
-    await assert.doesNotThrow(() => cloud.ensureRoom(1000));
-    await assert.rejects(async () => cloud.ensureRoom(2e7), e => e instanceof LimitError);
-  }, ftp.settings);
-  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: {} }));
+  assert.ok(Array.isArray((await withCloud(c => c.index(), ftp.settings)).songs));
 });
 
 test('ensureRoom with storage checks the 30 GB cap', async () => {
@@ -94,4 +78,17 @@ test('rebuildIndex re-adds orphan files and drops entries without a file', async
   assert.equal(songs.some(s => s.title === 'A'), false, 'entry without a file dropped');
   assert.equal(result.added, 1);
   assert.ok(result.removed >= 3);
+});
+
+test('a song the other laptop is adding, seen early as "added by hand", is listed once', async () => {
+  mkdirSync(cloudFile('songs'), { recursive: true });
+  writeFileSync(cloudFile('songs/X - Early.mp3'), Buffer.alloc(100));
+  await rebuildIndex(ftp.settings); // this laptop looks between the other laptop's rename and its addSong
+  const seenEarly = readCloud('library.json').songs.find(s => s.file === 'X - Early.mp3');
+  await withCloud(c => c.addSong(song('Early')), ftp.settings);
+  const entries = readCloud('library.json').songs.filter(s => s.file === 'X - Early.mp3');
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].duration, 180, 'the uploader\'s details win');
+  assert.notEqual(entries[0].addedBy, 'added by hand');
+  assert.equal(entries[0].id, seenEarly.id, 'same id, so a copy cached under it stays valid');
 });

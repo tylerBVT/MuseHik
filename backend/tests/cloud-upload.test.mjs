@@ -1,6 +1,6 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startFtp } from './ftp-fixture.mjs';
@@ -10,7 +10,7 @@ mkdirSync(join(tmp, 'music'));
 process.env.MUSIC_DIR = join(tmp, 'music');
 process.env.LIBRARY_DB = join(tmp, 'test.db');
 process.env.CLOUD_SETTINGS = join(tmp, 'cloud.json');
-const { cancelUpload, getUpload, scanFolder, startUpload } = await import('../modules/cloud/upload.mjs');
+const { activeUpload, cancelUpload, getUpload, queueUpload, scanFolder, startUpload } = await import('../modules/cloud/upload.mjs');
 
 let ftp;
 before(async () => { ftp = await startFtp(); });
@@ -47,14 +47,14 @@ test('uploads, then skips the same songs on a second run', async () => {
   assert.equal(cloudIndex().songs.length, 2);
 });
 
-test('stops at the monthly limit', async () => {
+test('stops at the storage limit', async () => {
   const paths = makeSongs(join(tmp, 'set2'), ['Limit - A', 'Limit - B', 'Limit - C']);
-  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: {} }));
-  const job = await finished(startUpload({ paths }, { ...ftp.settings, monthlyLimitGB: 0.00015 })); // 150 kB
+  const stored = cloudIndex().songs.reduce((sum, s) => sum + s.size, 0);
+  const job = await finished(startUpload({ paths }, { ...ftp.settings, storageLimitGB: (stored + 150_000) / 1e9 }));
   assert.equal(job.state, 'done');
   assert.equal(job.uploaded.length, 1);
   assert.equal(job.failed.length, 2);
-  for (const item of job.failed) assert.match(item.reason, /^Cloud limit reached for /);
+  for (const item of job.failed) assert.match(item.reason, /^Not enough cloud storage/);
 });
 
 test('cancel leaves no partial file', async () => {
@@ -80,6 +80,20 @@ test('a second upload cannot start while one is running', async () => {
   await finished(job);
 });
 
+test('an upload asked while another runs waits, then goes right after it', async () => {
+  const [first] = makeSongs(join(tmp, 'set5'), ['Queue - First'], 20_000_000);
+  const [second] = makeSongs(join(tmp, 'set6'), ['Queue - Second']);
+  const started = queueUpload({ paths: [first] }, ftp.settings);
+  assert.ok(started.jobId);
+  assert.deepEqual(queueUpload({ paths: [second] }, ftp.settings), { queued: true });
+  await finished(getUpload(started.jobId));
+  for (let i = 0; i < 400 && !cloudSongs().includes('Queue - Second.mp3'); i++) await new Promise(r => setTimeout(r, 25));
+  assert.ok(cloudSongs().includes('Queue - First.mp3'));
+  assert.ok(cloudSongs().includes('Queue - Second.mp3'), 'the waiting upload ran');
+  const next = activeUpload();
+  if (next) await finished(next);
+});
+
 test('scanFolder lists audio files, in subfolders too, and nothing else', async () => {
   const folder = join(tmp, 'scan');
   makeSongs(folder, ['A - One']);
@@ -91,4 +105,38 @@ test('scanFolder lists audio files, in subfolders too, and nothing else', async 
   assert.deepEqual(songs.map(s => s.title).sort(), ['A - One', 'B - Two']);
   assert.equal(songs[0].size, 100000);
   await assert.rejects(scanFolder(join(tmp, 'missing')), /does not exist/);
+});
+
+test('removeAfter: a file safely on the cloud leaves the laptop, a failed one stays', async () => {
+  const { addFile, hasPath } = await import('../core/library.mjs');
+  const music = join(tmp, 'music');
+  const [sent, refused, twin] = makeSongs(music, ['Gone - Sent', 'Kept - Refused', 'Artist - One']);
+  for (const path of [sent, refused, twin]) await addFile(path);
+  const stored = cloudIndex().songs.reduce((sum, s) => sum + s.size, 0);
+  const settings = { ...ftp.settings, storageLimitGB: (stored + 150_000) / 1e9 }; // room for one song only
+  const job = await finished(startUpload({ paths: [sent, refused, twin], removeAfter: [sent, refused, twin] }, settings));
+  assert.equal(job.uploaded.length, 1);
+  assert.equal(existsSync(sent), false, 'uploaded: deleted from the laptop');
+  assert.equal(hasPath(sent), false, 'and from the library');
+  assert.equal(existsSync(refused), true, 'not uploaded: kept');
+  assert.equal(hasPath(refused), true);
+  assert.match(job.failed[0].reason, /kept on this laptop/);
+  assert.equal(job.removed, 1);
+});
+
+test('removeAfter: a song the cloud already has leaves the laptop too', async () => {
+  const { addFile, hasPath } = await import('../core/library.mjs');
+  const [twin] = makeSongs(join(tmp, 'music'), ['Artist - Two']);
+  await addFile(twin);
+  const job = await finished(startUpload({ paths: [twin], removeAfter: [twin] }, ftp.settings));
+  assert.equal(job.skipped.length, 1);
+  assert.equal(existsSync(twin), false);
+  assert.equal(hasPath(twin), false);
+  assert.equal(job.removed, 1);
+});
+
+test('without removeAfter nothing is deleted', async () => {
+  const [kept] = makeSongs(join(tmp, 'set7'), ['Stay - Here']);
+  await finished(startUpload({ paths: [kept] }, ftp.settings));
+  assert.equal(existsSync(kept), true);
 });

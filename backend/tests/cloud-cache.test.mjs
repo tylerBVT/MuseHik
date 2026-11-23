@@ -13,7 +13,6 @@ process.env.LIBRARY_DB = join(tmp, 'test.db');
 process.env.CLOUD_SETTINGS = join(tmp, 'cloud.json');
 process.env.CLOUD_CACHE_DIR = join(tmp, 'cache');
 const { addFile } = await import('../core/library.mjs');
-const { monthKey } = await import('../modules/cloud/limits.mjs');
 const { cachedIds, evict, fetchSong, localSource, touch } = await import('../modules/cloud/cache.mjs');
 
 let ftp;
@@ -29,9 +28,8 @@ function cloudSong(id, title, size) {
   writeFileSync(join(ftp.root, 'music', 'songs', file), Buffer.alloc(size, id));
   return { id, file, title, artist: 'X', album: '', duration: 0, isrc: null, size };
 }
-const usedThisMonth = () => {
-  try { return JSON.parse(readFileSync(join(ftp.root, 'music', 'usage.json'), 'utf8')).months[monthKey()].bytes; } catch { return 0; }
-};
+/** How many times the server sent song files (JSON files not counted). */
+const songDownloads = () => ftp.reads.filter(name => /.mp3$/i.test(name)).length;
 
 test('prefers the local library copy', async () => {
   const path = join(tmp, 'music', 'Local Artist - Local Song.mp3');
@@ -43,9 +41,9 @@ test('prefers the local library copy', async () => {
 
 test('fetching a song that is in the local library downloads nothing', async () => {
   const song = { id: 98, file: 'X - Local Copy.mp3', title: 'Local Artist - Local Song', artist: '', duration: 0, size: 100 };
-  const before = usedThisMonth();
+  const logins = ftp.logins;
   assert.equal(await fetchSong(song, ftp.settings), join(tmp, 'music', 'Local Artist - Local Song.mp3'));
-  assert.equal(usedThisMonth(), before, 'no FTP traffic');
+  assert.equal(ftp.logins, logins, 'no connection');
   assert.equal(cachedIds().has(98), false);
 });
 
@@ -62,11 +60,10 @@ test('fetches once and serves from cache after', async () => {
 
 test('two concurrent fetches download once', async () => {
   const song = cloudSong(2, 'Two', 200000);
-  const before = usedThisMonth();
+  const before = songDownloads();
   const [a, b] = await Promise.all([fetchSong(song, ftp.settings), fetchSong(song, ftp.settings)]);
   assert.equal(a, b);
-  const spent = usedThisMonth() - before;
-  assert.ok(spent >= 200000 && spent < 400000, `spent ${spent}`);
+  assert.equal(songDownloads() - before, 1);
   assert.equal(existsSync(`${a}.part`), false);
 });
 

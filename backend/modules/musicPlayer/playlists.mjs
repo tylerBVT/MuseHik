@@ -71,6 +71,9 @@ const pq = {
   addSong: db.prepare(`INSERT INTO playlist_songs (playlist_id, position, title, artist, album, duration, isrc, key)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
   remove: db.prepare('DELETE FROM playlists WHERE id = ?'),
+  allSongs: db.prepare('SELECT playlist_id, position, title, artist, duration, isrc, key FROM playlist_songs'),
+  renameSong: db.prepare('UPDATE playlist_songs SET title = ?, artist = ?, key = ? WHERE playlist_id = ? AND position = ?'),
+  touch: db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?'),
   tomb: db.prepare('INSERT OR REPLACE INTO playlist_tombstones (uid, deleted_at) VALUES (?, ?)'),
   tombs: db.prepare('SELECT uid, deleted_at AS deletedAt FROM playlist_tombstones'),
   untomb: db.prepare('DELETE FROM playlist_tombstones WHERE uid = ?'),
@@ -186,6 +189,28 @@ export function deletePlaylist(id) {
     changed(row.uid);
   }
   return true;
+}
+
+/**
+ * A song was renamed (song menu): playlist entries that were this song get its new title and artist, so it keeps
+ * playing there. Shared playlists then sync the change. Returns how many playlists changed.
+ */
+export function renameSongEverywhere(before, after) {
+  const next = identity(after);
+  const touched = new Set();
+  inTransaction(() => {
+    for (const row of pq.allSongs.all()) {
+      if (!sameIdentity(row, before)) continue;
+      pq.renameSong.run(next.title, next.artist, next.key, row.playlist_id, row.position);
+      touched.add(row.playlist_id);
+    }
+    for (const id of touched) pq.touch.run(now(), id);
+  });
+  for (const id of touched) {
+    const row = pq.one.get(id);
+    if (row?.shared) changed(row.uid);
+  }
+  return touched.size;
 }
 
 /** Turns sharing on or off. `owner` is the name shown on the other laptop. */

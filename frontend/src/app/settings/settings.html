@@ -109,6 +109,19 @@
     websites. These details stay on this laptop.
   </p>
   @if (cloudForm(); as f) {
+    <label class="check online">
+      <input
+        type="checkbox"
+        role="switch"
+        [checked]="f.online"
+        [disabled]="cloudBusy()"
+        (change)="setOnline($any($event.target).checked)"
+      />
+      <span>
+        <strong>Use the cloud on this laptop</strong>
+        <span class="hint">{{ f.online ? 'Online.' : 'Offline: this laptop never connects. Songs already on it still play.' }}</span>
+      </span>
+    </label>
     <div class="form">
       <label class="field">
         <span class="label">Host</span>
@@ -147,10 +160,6 @@
       <label class="field">
         <span class="label">Folder</span>
         <input type="text" autocomplete="off" [value]="f.folder" (input)="setCloud('folder', $any($event.target).value)" />
-      </label>
-      <label class="field small">
-        <span class="label">Monthly limit (GB)</span>
-        <input type="number" min="0.1" step="0.5" [value]="f.monthlyLimitGB" (input)="setCloud('monthlyLimitGB', +$any($event.target).value)" />
       </label>
       <label class="field small">
         <span class="label">Storage limit (GB)</span>

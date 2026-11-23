@@ -9,7 +9,7 @@ import { sameIdentity } from '../../core/lib.mjs';
 import {
   clearTombstone, onSharedChange, playlistRows, removeByUid, tombstones, unshareByUid, upsertFromCloud,
 } from '../musicPlayer/playlists.mjs';
-import { isConfigured, loadSettings } from './settings.mjs';
+import { isConfigured, isOnline, loadSettings } from './settings.mjs';
 import { withCloud } from './store.mjs';
 import { activeUpload, startUpload } from './upload.mjs';
 
@@ -87,6 +87,7 @@ let lastSyncAt = 0;
 /** One full sync (never two at once). Returns { pushed, pulled, removed, uploading }. */
 export function syncPlaylists({ settings = loadSettings() } = {}) {
   if (!isConfigured(settings)) return Promise.resolve({ skipped: true, reason: 'The cloud is not set up.' });
+  if (!isOnline(settings)) return Promise.resolve({ skipped: true, reason: 'The cloud is offline on this laptop.' });
   running ??= (async () => {
     try {
       const { missing, ...counts } = await reconcile(settings);

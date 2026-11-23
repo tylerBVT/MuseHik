@@ -32,6 +32,9 @@
     @case ('cloud-upload') {
       <app-cloud-upload-page />
     }
+    @case ('cloud-save') {
+      <app-cloud-save-page />
+    }
     @case ('create') {
       <app-playlist-editor />
     }
@@ -42,8 +45,12 @@
       <app-playlist-page [id]="playlistId()!" />
     }
   }
-  <!-- Always mounted (only hidden), so a running download keeps its progress when you leave the page. -->
-  <app-download-page [hidden]="page() !== 'download'" />
+  <!-- Always mounted (only hidden), so a running download keeps its progress when you leave the page.
+       The same page is "Download new tracks" and "Download to cloud". -->
+  <app-download-page
+    [hidden]="page() !== 'download' && page() !== 'download-cloud'"
+    [cloudOnly]="page() === 'download-cloud'"
+  />
 </main>
 
 <app-player-bar />
