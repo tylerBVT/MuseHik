@@ -24,7 +24,11 @@
       <app-tracks-page />
     }
     @case ('separate') {
-      <app-separator-page />
+      @if (app.aiAllowed()) {
+        <app-separator-page />
+      } @else {
+        <app-home />
+      }
     }
     @case ('cloud') {
       <app-cloud-page />
@@ -53,4 +57,5 @@
   />
 </main>
 
+<app-update-banner />
 <app-player-bar />

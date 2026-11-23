@@ -3,6 +3,9 @@ import { PageHeader } from '../shared/page-header';
 import { ThemeChoice, ThemeService } from '../core/theme.service';
 import { API } from '../core/api';
 import { CloudService, CloudSettings } from '../features/cloud/cloud.service';
+import { AppSettingsService, Profile } from '../core/app-settings.service';
+import { desktop } from '../core/desktop';
+import { LibraryService } from '../core/library.service';
 
 /** yt-dlp, the downloader's engine, as reported by GET /api/download/engine. */
 type Engine = {
@@ -46,9 +49,84 @@ export class Settings {
   protected readonly cloudBusy = signal(false);
   protected readonly cloudResult = signal<{ ok: boolean; text: string } | null>(null);
 
+  protected readonly app = inject(AppSettingsService);
+  private readonly library = inject(LibraryService);
+  protected readonly profiles: { value: Profile; label: string }[] = [
+    { value: 'poontje', label: 'Poontje' },
+    { value: 'muttmutt', label: 'MuttMutt' },
+  ];
+  protected readonly profileError = signal('');
+  /** A folder picked in the window, waiting for "move my songs" or "use it as it is". */
+  protected readonly pickedFolder = signal<string | null>(null);
+  protected readonly folderBusy = signal(false);
+  protected readonly folderResult = signal<{ ok: boolean; text: string } | null>(null);
+  protected readonly isDesktop = Boolean(desktop);
+  protected readonly updateText = signal('');
+  protected readonly updateChecking = signal(false);
+
   constructor() {
     void this.loadEngine();
     void this.loadCloud();
+    void this.app.load();
+  }
+
+  protected async setProfile(profile: Profile): Promise<void> {
+    this.profileError.set('');
+    try {
+      await this.app.setProfile(profile);
+    } catch (e) {
+      this.profileError.set((e as Error).message);
+    }
+  }
+
+  protected async pickMusicFolder(): Promise<void> {
+    this.folderResult.set(null);
+    try {
+      const path = await this.app.pickFolder();
+      if (path) this.pickedFolder.set(path);
+    } catch (e) {
+      this.folderResult.set({ ok: false, text: (e as Error).message });
+    }
+  }
+
+  /** "Move my N songs there" (move) or "Use this folder as it is". */
+  protected async useMusicFolder(move: boolean): Promise<void> {
+    const path = this.pickedFolder();
+    if (!path) return;
+    const old = this.app.info()?.musicDir ?? '';
+    this.folderBusy.set(true);
+    this.folderResult.set(null);
+    try {
+      const result = await this.app.changeMusicDir(path, move);
+      this.pickedFolder.set(null);
+      const songs = (n: number) => `${n} ${n === 1 ? 'song' : 'songs'}`;
+      this.folderResult.set(
+        result.failed.length
+          ? { ok: false, text: `${songs(result.failed.length)} could not be moved; they are still in ${old}.` }
+          : { ok: true, text: move ? `Moved ${songs(result.moved)}.` : `Now using this folder: ${songs(result.total)}.` },
+      );
+      void this.library.load();
+    } catch (e) {
+      this.folderResult.set({ ok: false, text: (e as Error).message });
+    } finally {
+      this.folderBusy.set(false);
+    }
+  }
+
+  protected async checkForUpdates(): Promise<void> {
+    if (!desktop) return;
+    this.updateChecking.set(true);
+    try {
+      const r = await desktop.checkForUpdates();
+      this.updateText.set(
+        r.status === 'latest' ? 'You have the latest version.'
+        : r.status === 'downloading' ? `Downloading version ${r.version}...`
+        : r.status === 'ready' ? `Version ${r.version} is ready, restart to install.`
+        : (r.message ?? 'Could not check for updates.'),
+      );
+    } finally {
+      this.updateChecking.set(false);
+    }
   }
 
   private async loadCloud(): Promise<void> {

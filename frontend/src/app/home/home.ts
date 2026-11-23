@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { AppSettingsService } from '../core/app-settings.service';
 import { LibraryService } from '../core/library.service';
 import { NavService } from '../core/nav.service';
 import { CloudService, cloudOnline } from '../features/cloud/cloud.service';
@@ -13,6 +14,8 @@ import { PlaylistService, PlaylistSummary } from '../features/musicPlayer/playli
 export class Home {
   protected readonly nav = inject(NavService);
   protected readonly library = inject(LibraryService);
+  /** MuttMutt does not see the AI tools. */
+  protected readonly app = inject(AppSettingsService);
   private readonly playlistService = inject(PlaylistService);
   protected readonly playlists = this.playlistService.playlists;
   /** This laptop's name on shared playlists, to tell mine from the other laptop's. */

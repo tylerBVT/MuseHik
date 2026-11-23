@@ -1,5 +1,83 @@
 <app-page-header title="Settings" />
 
+<section class="group" aria-labelledby="profile">
+  <h2 id="profile">Who uses this laptop?</h2>
+  <div class="row">
+    <div>
+      <div class="label">Profile</div>
+      <div class="hint">MuttMutt hides the AI tools (instrumental separator).</div>
+    </div>
+    <div class="choices" role="radiogroup" aria-label="Who uses this laptop">
+      @for (p of profiles; track p.value) {
+        <button
+          type="button"
+          class="choice"
+          role="radio"
+          [class.on]="app.info()?.profile === p.value"
+          [attr.aria-checked]="app.info()?.profile === p.value"
+          (click)="setProfile(p.value)"
+        >
+          {{ p.label }}
+        </button>
+      }
+    </div>
+  </div>
+  @if (profileError()) {
+    <p class="error">{{ profileError() }}</p>
+  }
+</section>
+
+<section class="group" aria-labelledby="music-folder">
+  <h2 id="music-folder">Music folder</h2>
+  @if (app.info(); as info) {
+    <div class="row music-folder">
+      <div>
+        <div class="label path">{{ info.musicDir }}</div>
+        <div class="hint">{{ info.songs }} {{ info.songs === 1 ? 'song' : 'songs' }}</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="pickMusicFolder()">Change...</button>
+      </div>
+    </div>
+    @if (pickedFolder(); as picked) {
+      <div class="confirm">
+        <p>New music folder: <strong class="path">{{ picked }}</strong></p>
+        <div class="actions">
+          <button type="button" class="action" [disabled]="folderBusy()" (click)="useMusicFolder(true)">
+            {{ folderBusy() ? 'Moving...' : 'Move my ' + info.songs + ' songs there' }}
+          </button>
+          <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="useMusicFolder(false)">
+            Use this folder as it is
+          </button>
+          <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="pickedFolder.set(null)">Cancel</button>
+        </div>
+      </div>
+    }
+  }
+  @if (folderResult(); as r) {
+    <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
+  }
+</section>
+
+@if (app.info()?.installed) {
+  <section class="group" aria-labelledby="about">
+    <h2 id="about">About MuseHik</h2>
+    <div class="row">
+      <div>
+        <div class="label">Version {{ app.info()?.version }}</div>
+        <div class="hint">{{ updateText() || 'MuseHik checks for a new version when it starts and every few hours.' }}</div>
+      </div>
+      @if (isDesktop) {
+        <div class="actions">
+          <button type="button" class="action secondary" [disabled]="updateChecking()" (click)="checkForUpdates()">
+            {{ updateChecking() ? 'Checking...' : 'Check for updates' }}
+          </button>
+        </div>
+      }
+    </div>
+  </section>
+}
+
 <section class="group" aria-labelledby="appearance">
   <h2 id="appearance">Appearance</h2>
   <div class="row">

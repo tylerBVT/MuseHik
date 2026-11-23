@@ -14,9 +14,11 @@ import { Settings } from './settings/settings';
 import { CloudPage } from './features/cloud/cloud-page';
 import { CloudUploadPage } from './features/cloud/cloud-upload-page';
 import { CloudSavePage } from './features/cloud/cloud-save-page';
+import { UpdateBanner } from './shared/update-banner';
+import { AppSettingsService } from './core/app-settings.service';
 
 @Component({
-  imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar, CloudPage, CloudUploadPage, CloudSavePage],
+  imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar, CloudPage, CloudUploadPage, CloudSavePage, UpdateBanner],
   selector: 'app-root',
   styleUrl: './app.css',
   templateUrl: './app.html',
@@ -25,6 +27,8 @@ export class App {
   protected readonly nav = inject(NavService);
   /** Creating it applies the saved theme right at startup. */
   private readonly theme = inject(ThemeService);
+  /** MuttMutt does not see the AI tools. */
+  protected readonly app = inject(AppSettingsService);
 
   protected readonly page = computed(() => this.nav.view().page);
   /** The playlist being shown or edited, when the current page is about one. */
