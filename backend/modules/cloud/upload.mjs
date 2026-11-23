@@ -11,7 +11,7 @@ import { fileBase, sameIdentity } from '../../core/lib.mjs';
 import { AUDIO_EXTS, getTrack, readTags } from '../../core/library.mjs';
 import { LimitError } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
-import { songPath, withCloud } from './store.mjs';
+import { songPath, syncFolder, withCloud } from './store.mjs';
 
 const jobs = new Map();
 const controllers = new Map(); // job id -> AbortController (kept out of the job so it stays JSON-serialisable)
@@ -72,6 +72,7 @@ async function run(job, selection, settings, signal) {
   job.total = songs.length;
   job.bytesTotal = songs.reduce((sum, s) => sum + s.size, 0);
   await withCloud(async cloud => {
+    await syncFolder(cloud); // files added by hand are in the index, so freeFile never picks their name
     const index = await cloud.index();
     for (let i = 0; i < songs.length; i++) {
       const song = songs[i];

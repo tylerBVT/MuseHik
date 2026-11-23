@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { extname } from 'node:path';
-import { trackKey } from '../../core/lib.mjs';
+import { AUDIO_EXTS, trackKey } from '../../core/lib.mjs';
 import { GB, checkStorage, monthKey, usageSummary } from './limits.mjs';
 import { openSession } from './remote.mjs';
 import { isConfigured, loadSettings, localFile } from './settings.mjs';
@@ -63,6 +63,15 @@ export async function withCloud(fn, settings = loadSettings()) {
       await writeIndex(index);
       return song;
     },
+    /** Changes some fields of one song (re-reads the index first: the other laptop may have written it). */
+    async updateSong(id, patch) {
+      const index = await readIndex();
+      const song = index.songs.find(s => s.id === id);
+      if (!song) return null;
+      Object.assign(song, patch);
+      await writeIndex(index);
+      return song;
+    },
     async removeSong(id) {
       const index = await readIndex();
       const song = index.songs.find(s => s.id === id);
@@ -92,32 +101,48 @@ export async function withCloud(fn, settings = loadSettings()) {
   }
 }
 
-/** Repairs the index from the songs/ folder: adds files it lacks, drops entries whose file is gone. */
-export function rebuildIndex(settings = loadSettings()) {
-  return withCloud(async cloud => {
-    const files = await cloud.session.list('songs');
-    const names = new Set(files.map(f => f.name));
-    const index = await cloud.index();
-    const known = new Set(index.songs.map(s => s.file));
-    const kept = index.songs.filter(s => names.has(s.file));
-    const removed = index.songs.length - kept.length;
-    let added = 0;
-    for (const f of files) {
-      if (known.has(f.name) || /\.part\.\w+$/i.test(f.name)) continue;
-      const base = f.name.slice(0, -extname(f.name).length || undefined);
-      const dash = base.indexOf(' - ');
-      const artist = dash > 0 ? base.slice(0, dash) : '';
-      const title = dash > 0 ? base.slice(dash + 3) : base;
-      kept.push({
-        id: index.nextId++, file: f.name, title, artist, album: '', duration: 0, isrc: null,
-        key: trackKey(artist, title), size: f.size, addedBy: hostname(), addedAt: new Date().toISOString(),
-      });
-      added++;
-    }
+/** Who "added" a song found in songs/ that no laptop uploaded (put there with FileZilla or the hosting's panel). */
+export const BY_HAND = 'added by hand';
+
+/**
+ * Brings the index in line with the songs/ folder: audio files it lacks are added (artist and title from the file
+ * name "Artist - Title.mp3"; the real tags are filled in when the song is first played), entries whose file is gone
+ * are dropped. Upload leftovers (*.part.*) and non-audio files are ignored. The index is only written on a change.
+ */
+export async function syncFolder(cloud) {
+  const files = (await cloud.session.list('songs'))
+    .filter(f => AUDIO_EXTS.has(extname(f.name).toLowerCase()) && !/\.part\.\w+$/i.test(f.name));
+  const names = new Set(files.map(f => f.name));
+  const index = await cloud.index();
+  // An empty answer while the list has songs is more likely a server hiccup than every song deleted by hand: keep
+  // the list (titles, lengths, dates). Songs deleted in the app leave it anyway.
+  if (!files.length) return { added: 0, removed: 0 };
+  const known = new Set(index.songs.map(s => s.file));
+  const kept = index.songs.filter(s => names.has(s.file));
+  const removed = index.songs.length - kept.length;
+  let added = 0;
+  for (const f of files) {
+    if (known.has(f.name)) continue;
+    const base = f.name.slice(0, -extname(f.name).length);
+    const dash = base.indexOf(' - ');
+    const artist = dash > 0 ? base.slice(0, dash) : '';
+    const title = dash > 0 ? base.slice(dash + 3) : base;
+    kept.push({
+      id: index.nextId++, file: f.name, title, artist, album: '', duration: 0, isrc: null,
+      key: trackKey(artist, title), size: f.size, addedBy: BY_HAND, addedAt: f.modifiedAt || new Date().toISOString(),
+    });
+    added++;
+  }
+  if (added || removed) {
     index.songs = kept;
     await cloud.writeIndex(index);
-    return { added, removed };
-  }, settings);
+  }
+  return { added, removed };
+}
+
+/** Repairs the index from the songs/ folder (see syncFolder). */
+export function rebuildIndex(settings = loadSettings()) {
+  return withCloud(syncFolder, settings);
 }
 
 /** What the usage bars show. Never throws: a connection problem comes back as `error`. */

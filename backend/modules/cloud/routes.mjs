@@ -11,7 +11,7 @@ import { readJson, streamFile } from '../../core/http.mjs';
 import { fetchSong, localSource, touch } from './cache.mjs';
 import { testConnection } from './remote.mjs';
 import { isConfigured, loadSettings, publicSettings, saveSettings } from './settings.mjs';
-import { cloudStatus, lastIndex, rebuildIndex, withCloud } from './store.mjs';
+import { cloudStatus, lastIndex, rebuildIndex, syncFolder, withCloud } from './store.mjs';
 import { setShared } from '../musicPlayer/playlists.mjs';
 import { ownerName, requestSync, syncPlaylists } from './playlistSync.mjs';
 import { activeUpload, cancelUpload, getUpload, pickFolder, scanFolder, startUpload } from './upload.mjs';
@@ -48,7 +48,8 @@ export async function handle(req, { res, json, cors }) {
 
   if (method === 'GET' && url === '/api/cloud/songs') {
     try {
-      const index = await withCloud(c => c.index());
+      // Songs added to songs/ by hand (FileZilla...) join the list; songs deleted by hand leave it.
+      const index = await withCloud(async c => { await syncFolder(c); return c.index(); });
       json(200, { songs: withLaptopFlag(index.songs), offline: false });
     } catch (e) {
       // Cloud unreachable: show the last known list; songs on this laptop still play.

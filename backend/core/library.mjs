@@ -6,9 +6,9 @@ import { readdir, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { parseFile } from 'music-metadata';
 import { dataDir, outputDir } from './config.mjs';
-import { sameLength, sameSong, trackKey } from './lib.mjs';
+import { AUDIO_EXTS, sameLength, sameSong, trackKey } from './lib.mjs';
 
-export const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.opus', '.ogg', '.flac', '.wav']);
+export { AUDIO_EXTS };
 
 mkdirSync(dataDir, { recursive: true });
 /** The one SQLite database. Modules add their own tables to it (see modules/musicPlayer/playlists.mjs). */

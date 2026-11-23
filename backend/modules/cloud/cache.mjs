@@ -4,7 +4,9 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { rename, rm, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { parseFile } from 'music-metadata';
 import { heavyDir } from '../../core/config.mjs';
+import { trackKey } from '../../core/lib.mjs';
 import { db, findDuplicate } from '../../core/library.mjs';
 import { GB } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
@@ -55,6 +57,25 @@ export function evict(limitBytes, keepId) {
   }
 }
 
+/**
+ * A song added by hand is listed with what its file name says and no length. Once it is on this laptop, its own tags
+ * are read and written to the shared list (never fatal: the song plays either way).
+ */
+async function fillTags(cloud, song, path) {
+  try {
+    const { common, format } = await parseFile(path, { duration: true, skipCovers: true });
+    const patch = { duration: format.duration || 0 };
+    if (common.title) patch.title = common.title;
+    if (common.artist) patch.artist = common.artist;
+    if (common.album) patch.album = common.album;
+    if (common.isrc?.[0]) patch.isrc = common.isrc[0];
+    patch.key = trackKey(patch.artist ?? song.artist, patch.title ?? song.title);
+    await cloud.updateSong(song.id, patch);
+  } catch (e) {
+    console.error(`Could not read the tags of "${song.file}":`, e.message);
+  }
+}
+
 const inFlight = new Map(); // song id -> Promise<path>: one download per song, however many ask
 
 /** The cached file of a cloud song, downloading it first if needed (added to this month's traffic count). */
@@ -70,8 +91,11 @@ export function fetchSong(song, settings = loadSettings()) {
     const target = cachedFile(song);
     const part = `${target}.part`;
     try {
-      await withCloud(cloud => cloud.session.download(songPath(song), part), settings);
-      await rename(part, target);
+      await withCloud(async cloud => {
+        await cloud.session.download(songPath(song), part);
+        await rename(part, target);
+        if (!song.duration) await fillTags(cloud, song, target);
+      }, settings);
     } catch (e) {
       await rm(part, { force: true });
       throw e;

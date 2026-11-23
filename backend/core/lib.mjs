@@ -1,5 +1,8 @@
 // Pure helpers shared by all services (no I/O, so they can be unit-tested).
 
+/** File extensions the library and the cloud treat as songs. */
+export const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.opus', '.ogg', '.flac', '.wav']);
+
 export const safeName = s =>
   String(s || 'Untitled').normalize('NFKC').replace(/[\x00-\x1f/\\:*?"<>|%]/g, '_')
     .replace(/^\.+/, '').replace(/[ .]+$/, '').slice(0, 100) || 'Untitled';

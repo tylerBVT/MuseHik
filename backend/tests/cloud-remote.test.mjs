@@ -18,7 +18,7 @@ test('round trip upload, list, download, rename, remove', async () => {
   try {
     await s.upload(src, 'songs/A - B.part.mp3');
     await s.rename('songs/A - B.part.mp3', 'songs/A - B.mp3');
-    assert.deepEqual(await s.list('songs'), [{ name: 'A - B.mp3', size: 5000 }]);
+    assert.deepEqual((await s.list('songs')).map(({ name, size }) => ({ name, size })), [{ name: 'A - B.mp3', size: 5000 }]);
     assert.ok(existsSync(join(ftp.root, 'music', 'songs', 'A - B.mp3')), 'lands inside the cloud folder');
     const back = join(local, 'back.mp3');
     await s.download('songs/A - B.mp3', back);

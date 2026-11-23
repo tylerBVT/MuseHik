@@ -161,7 +161,9 @@ export async function openSession(settings) {
     list: subdir => run(async () => {
       try {
         const entries = await client.list(at(subdir));
-        return entries.filter(e => e.isFile).map(e => ({ name: e.name, size: e.size }));
+        // modifiedAt: only when the server gives an exact date (MLSD); a plain LIST date is too vague to keep.
+        return entries.filter(e => e.isFile)
+          .map(e => ({ name: e.name, size: e.size, modifiedAt: e.modifiedAt?.toISOString() ?? null }));
       } catch (e) {
         if (isMissing(e)) return [];
         throw e;
