@@ -1,5 +1,6 @@
 # Builds the Windows installer and publishes it as a GitHub Release when a version tag (v1.2.3) is pushed.
 # Installed apps find it there and update themselves (desktop/updates.mjs). Start it with: cd desktop && npm run release
+# Each command runs through .github/run-and-report.sh: on failure its last lines are posted as an error annotation.
 name: Release
 
 on:
@@ -8,6 +9,10 @@ on:
 
 permissions:
   contents: write
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   windows:
@@ -20,11 +25,10 @@ jobs:
           node-version: 24
 
       - name: The tag matches desktop/package.json
-        shell: bash
         run: |
           version=$(node -p "require('./desktop/package.json').version")
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME but desktop/package.json says $version"; exit 1
+            echo "::error::Tag $GITHUB_REF_NAME but desktop/package.json says $version"; exit 1
           fi
 
       # Backend tests run on the author's laptop before the tag is pushed (desktop/scripts/release.mjs): some need
@@ -33,21 +37,21 @@ jobs:
       - name: Build the app
         working-directory: frontend
         run: |
-          npm ci --no-audit --no-fund
-          npx ng build
+          bash ../.github/run-and-report.sh "npm ci (frontend)" npm ci --no-audit --no-fund
+          bash ../.github/run-and-report.sh "Build the app" npx ng build
 
       - name: Desktop tests
         working-directory: desktop
         run: |
-          npm ci --no-audit --no-fund
-          npm test
+          bash ../.github/run-and-report.sh "npm ci (desktop)" npm ci --no-audit --no-fund
+          bash ../.github/run-and-report.sh "Desktop tests" npm test
 
       - name: Gather Node, Python, backend and app
         working-directory: desktop
-        run: node scripts/stage.mjs
+        run: bash ../.github/run-and-report.sh "Gather (stage.mjs)" node scripts/stage.mjs
 
       - name: Build and publish the installer
         working-directory: desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish always
+        run: bash ../.github/run-and-report.sh "electron-builder" npx electron-builder --win --publish always
