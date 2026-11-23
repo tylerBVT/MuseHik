@@ -63,8 +63,36 @@ export function startUpload(selection, settings = loadSettings()) {
   controllers.set(job.id, controller);
   run(job, selection, settings, controller.signal)
     .catch(e => { job.state = 'failed'; job.error = e.message; })
-    .finally(() => { job.current = null; controllers.delete(job.id); });
+    .finally(() => {
+      job.current = null;
+      controllers.delete(job.id);
+      startWaiting();
+    });
   return job;
+}
+
+const waiting = []; // { selection, settings } asked for while an upload was running
+
+/** The uploads that waited, together as one job (songs already on the cloud are skipped as usual). */
+function startWaiting() {
+  if (!waiting.length || activeUpload()) return;
+  const batch = waiting.splice(0);
+  const selection = {
+    trackIds: batch.flatMap(w => w.selection.trackIds ?? []),
+    paths: batch.flatMap(w => w.selection.paths ?? []),
+  };
+  try {
+    startUpload(selection, batch.at(-1).settings);
+  } catch (e) {
+    console.error('Cloud upload:', e.message);
+  }
+}
+
+/** Like startUpload, but when an upload is running this one waits and starts right after it. */
+export function queueUpload(selection, settings = loadSettings()) {
+  if (!activeUpload()) return { jobId: startUpload(selection, settings).id };
+  waiting.push({ selection, settings });
+  return { queued: true };
 }
 
 async function run(job, selection, settings, signal) {

@@ -10,7 +10,7 @@ mkdirSync(join(tmp, 'music'));
 process.env.MUSIC_DIR = join(tmp, 'music');
 process.env.LIBRARY_DB = join(tmp, 'test.db');
 process.env.CLOUD_SETTINGS = join(tmp, 'cloud.json');
-const { cancelUpload, getUpload, scanFolder, startUpload } = await import('../modules/cloud/upload.mjs');
+const { activeUpload, cancelUpload, getUpload, queueUpload, scanFolder, startUpload } = await import('../modules/cloud/upload.mjs');
 
 let ftp;
 before(async () => { ftp = await startFtp(); });
@@ -81,6 +81,20 @@ test('a second upload cannot start while one is running', async () => {
   assert.throws(() => startUpload({ paths: [path] }, ftp.settings), /already running/);
   cancelUpload(job.id);
   await finished(job);
+});
+
+test('an upload asked while another runs waits, then goes right after it', async () => {
+  const [first] = makeSongs(join(tmp, 'set5'), ['Queue - First'], 20_000_000);
+  const [second] = makeSongs(join(tmp, 'set6'), ['Queue - Second']);
+  const started = queueUpload({ paths: [first] }, ftp.settings);
+  assert.ok(started.jobId);
+  assert.deepEqual(queueUpload({ paths: [second] }, ftp.settings), { queued: true });
+  await finished(getUpload(started.jobId));
+  for (let i = 0; i < 400 && !cloudSongs().includes('Queue - Second.mp3'); i++) await new Promise(r => setTimeout(r, 25));
+  assert.ok(cloudSongs().includes('Queue - First.mp3'));
+  assert.ok(cloudSongs().includes('Queue - Second.mp3'), 'the waiting upload ran');
+  const next = activeUpload();
+  if (next) await finished(next);
 });
 
 test('scanFolder lists audio files, in subfolders too, and nothing else', async () => {

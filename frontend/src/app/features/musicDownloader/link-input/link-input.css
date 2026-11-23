@@ -428,3 +428,25 @@ button.secondary {
   color: var(--text-secondary);
   border: 1px solid var(--border-strong);
 }
+
+.to-cloud {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.to-cloud input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.cloud-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}

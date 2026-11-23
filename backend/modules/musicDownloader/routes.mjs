@@ -1,9 +1,10 @@
-// Downloader API: POST /api/download, GET /api/download/active, GET /api/jobs/:id, POST /api/jobs/:id/cancel,
+// Downloader API: POST /api/download {url, toCloud?}, GET /api/download/active, GET /api/jobs/:id, POST /api/jobs/:id/cancel,
 //   GET /api/download/history, DELETE /api/download/history[/:id], GET /api/download/history/:id/report (text)
 //   yt-dlp engine: GET /api/download/engine, PUT /api/download/engine {channel},
 //                  POST /api/download/engine/update, POST /api/download/engine/rollback
 // (update and rollback run in the background; poll GET /api/download/engine until `updating` is false)
 import { readJson } from '../../core/http.mjs';
+import { isConfigured, loadSettings } from '../cloud/settings.mjs';
 import { youtubeBlockedUntil } from './engine.mjs';
 import { activeJob, cancelJob, deleteHistory, getJob, listHistory, startJob } from './jobs.mjs';
 import { renderReport } from './report.mjs';
@@ -28,7 +29,12 @@ export async function handle(req, { json, res, cors }) {
   }
   if (req.method === 'POST' && req.url === '/api/download') {
     // The link is checked inside the job, so even a bad link ends up in the history with its explanation.
-    const job = startJob((await readJson(req, 10000)).url);
+    const { url, toCloud } = await readJson(req, 10000);
+    if (toCloud && !isConfigured(loadSettings())) {
+      json(400, { error: 'Set up the cloud in Settings first, or untick "Also send to the cloud".' });
+      return true;
+    }
+    const job = startJob(url, { toCloud });
     json(202, { jobId: job.id });
     return true;
   }

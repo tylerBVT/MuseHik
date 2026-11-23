@@ -1,5 +1,7 @@
-import { Component, computed, output, signal } from '@angular/core';
+import { Component, computed, inject, output, signal } from '@angular/core';
 import { API } from '../../../core/api';
+import { NavService } from '../../../core/nav.service';
+import { CloudService } from '../../cloud/cloud.service';
 
 type Toast = { kind: 'info' | 'success' | 'error'; text: string };
 
@@ -44,7 +46,13 @@ export type Job = {
   detail?: string;
   startedAt?: string;
   finishedAt?: string;
+  /** "Also send to the cloud" was ticked. */
+  toCloud?: boolean;
+  /** Set when the download ended with "Also send to the cloud": how many songs went to the upload. */
+  cloud?: { songs: number; jobId?: string; queued?: boolean; error?: string };
 };
+
+const TO_CLOUD_KEY = 'musehik.download.toCloud';
 
 const POLL_MS = 1000;
 const STATUS_LABEL: Record<Job['status'], string> = {
@@ -56,6 +64,14 @@ export const badgeOf = (job: Job): { label: string; tone: string } =>
   job.status === 'done' && job.error
     ? { label: 'Incomplete', tone: 'cancelled' }
     : { label: STATUS_LABEL[job.status], tone: job.status };
+
+function readToCloud(): boolean {
+  try {
+    return localStorage.getItem(TO_CLOUD_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 @Component({
   selector: 'app-link-input',
@@ -77,10 +93,35 @@ export class LinkInput {
   readonly finished = output<void>();
 
   protected readonly badge = badgeOf;
+  protected readonly nav = inject(NavService);
+  private readonly cloud = inject(CloudService);
+  /** The cloud is set up in Settings: the "Also send to the cloud" box is shown. */
+  protected readonly cloudReady = signal(false);
+  protected readonly toCloud = signal(readToCloud());
 
   constructor() {
     void this.loadHistory();
     void this.resumeRunning();
+    void this.checkCloud();
+  }
+
+  private async checkCloud(): Promise<void> {
+    try {
+      const s = await this.cloud.getSettings();
+      this.cloudReady.set(Boolean(s.host && s.user && s.hasPassword));
+    } catch {
+      this.cloudReady.set(false);
+    }
+  }
+
+  protected setToCloud(event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.toCloud.set(on);
+    try {
+      localStorage.setItem(TO_CLOUD_KEY, on ? '1' : '0');
+    } catch {
+      /* remembering the choice is a nicety */
+    }
   }
 
   protected readonly canDownload = computed(
@@ -118,7 +159,7 @@ export class LinkInput {
       const start = await fetch(`${API}/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, toCloud: this.cloudReady() && this.toCloud() }),
       });
       const started = await start.json();
       if (!start.ok) throw new Error(started.error ?? `Server error ${start.status}`);

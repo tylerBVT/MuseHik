@@ -22,6 +22,7 @@ import { saveReport } from './report.mjs';
 import { updateAfterFailure, versions } from './updater.mjs';
 import { fileBase, trackKey } from '../../core/lib.mjs';
 import { addFile, db, duplicateOfFile, findDuplicate } from '../../core/library.mjs';
+import { queueUpload } from '../cloud/upload.mjs';
 
 const MAX_TRACKS = 10000; // a safety net only: Deezer playlists hold at most 10,000 songs
 const MAX_BLOCKS = 5; // YouTube blocks in a row (about 3 hours of waiting) before a job gives up
@@ -303,6 +304,7 @@ async function processJob(job, signal) {
     if (!signal.aborted) Object.assign(job, explain(e));
   }
   job.current = '';
+  if (job.toCloud) sendToCloud(job);
   job.finishedAt = new Date().toISOString();
   job.ytdlp = (await versions().catch(() => null))?.ytdlp ?? null;
   try {
@@ -319,9 +321,32 @@ async function processJob(job, signal) {
   }
 }
 
-export function startJob(url) {
+/**
+ * What "Also send to the cloud" uploads: the songs this download got, plus the ones it skipped because the library
+ * already had them (the upload itself skips songs the cloud already has).
+ */
+export const cloudSelection = job => ({
+  paths: [...job.files],
+  trackIds: job.skippedList.map(s => s.match?.id).filter(Number.isInteger),
+});
+
+/** At the end of a download (finished or stopped): hands its songs to the cloud upload (it waits if one is running). */
+function sendToCloud(job) {
+  const selection = cloudSelection(job);
+  const songs = selection.paths.length + selection.trackIds.length;
+  if (!songs) return;
+  try {
+    job.cloud = { songs, ...queueUpload(selection) };
+  } catch (e) {
+    job.cloud = { songs, error: e.message };
+  }
+}
+
+/** Starts a download. `toCloud`: upload its songs to the cloud when it ends. */
+export function startJob(url, { toCloud = false } = {}) {
   const job = {
     id: randomUUID(), url: String(url ?? '').trim(), platform: '', status: 'running', name: '', total: 0, done: 0,
+    toCloud: Boolean(toCloud),
     skipped: 0, current: 'Reading link...', files: [], downloaded: [], skippedList: [], failed: [], notes: [], folder: outputDir,
     startedAt: new Date().toISOString(),
   };

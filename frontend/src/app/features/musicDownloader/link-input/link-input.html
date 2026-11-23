@@ -16,6 +16,13 @@
     (input)="onInput($event)"
   />
 
+  @if (cloudReady()) {
+    <label class="to-cloud">
+      <input type="checkbox" [checked]="toCloud()" [disabled]="downloading()" (change)="setToCloud($event)" />
+      Also send to the cloud (when the download ends)
+    </label>
+  }
+
   <button type="button" [disabled]="!canDownload()" (click)="download()">
     {{ downloading() ? 'Downloading...' : 'Download' }}
   </button>
@@ -121,6 +128,18 @@
           <ul class="notes">
             @for (note of h.notes; track $index) { <li>{{ note }}</li> }
           </ul>
+        }
+
+        @if (h.cloud; as c) {
+          @if (c.error) {
+            <p class="failed">Could not send to the cloud: {{ c.error }}</p>
+          } @else {
+            <p class="cloud-line">
+              {{ c.queued ? 'Waiting to send' : 'Sending' }} {{ c.songs }} {{ c.songs === 1 ? 'song' : 'songs' }} to the
+              cloud{{ c.queued ? ' (after the upload already running)' : '' }}.
+              <button type="button" class="small secondary" (click)="nav.go({ page: 'cloud-upload' })">See the upload</button>
+            </p>
+          }
         }
 
         @if (h.notTried?.length) {
