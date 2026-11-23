@@ -63,7 +63,7 @@ MuseHik runs on the author's laptop because Node, Python and the venv are instal
 
 ### 3. Python, yt-dlp, ffmpeg inside the installer
 
-- Ship a standalone Python (python-build-standalone, ~30 MB) in the app resources.
+- Ship the official python.org Python (NuGet package "python", signed by the PSF) in the app resources. Not python-build-standalone: its DLLs are unsigned and Windows Smart App Control blocks them (seen on the author's laptop with `_ssl.pyd`).
 - On first start, create a venv in `%LOCALAPPDATA%\MuseHik\venv` from it and copy in the yt-dlp + imageio-ffmpeg packages that were pre-installed at build time (so the first start needs no internet and no pip download). The existing pip-based **yt-dlp auto-updater** (`updater.mjs`) then works unchanged on that venv, which matters because YouTube breaks yt-dlp every few weeks.
 - `ytdlp_launcher.py` (DNS fallback) is kept as is: harmless where YouTube is not blocked.
 - yt-dlp-ejs needs a JavaScript runtime for YouTube challenges. Today `engine.mjs` passes `--js-runtimes node` and yt-dlp finds the system Node. In installed mode, **ship `node.exe` in the installer** (~30 MB compressed) and pass `--js-runtimes node:<path to bundled node.exe>`. (Rejected: running Electron's own binary as Node with `ELECTRON_RUN_AS_NODE=1`; free but fragile across Electron/yt-dlp versions.) Verified with a real YouTube download on a Windows account without Node installed.

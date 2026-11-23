@@ -1,0 +1,53 @@
+# Builds the Windows installer and publishes it as a GitHub Release when a version tag (v1.2.3) is pushed.
+# Installed apps find it there and update themselves (desktop/updates.mjs). Start it with: cd desktop && npm run release
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: The tag matches desktop/package.json
+        shell: bash
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME but desktop/package.json says $version"; exit 1
+          fi
+
+      # Backend tests run on the author's laptop before the tag is pushed (desktop/scripts/release.mjs): some need
+      # its Python venv and ffmpeg, which this machine does not have.
+
+      - name: Build the app
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx ng build
+
+      - name: Desktop tests
+        working-directory: desktop
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+
+      - name: Gather Node, Python, backend and app
+        working-directory: desktop
+        run: node scripts/stage.mjs
+
+      - name: Build and publish the installer
+        working-directory: desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always

@@ -27,7 +27,7 @@ Weakness to fix first (before any sync or move to another device):
 
 ## 2. Mum can just double-click it (needed before anything else is useful to her)
 
-Right now you start two servers in a terminal. For a non-technical user we need one launcher: a Windows app that bundles the Node server, the built Angular files, and (if she downloads) yt-dlp + ffmpeg. Options: Electron, Tauri, or a small tray launcher. Decide when we get there.
+**Done 2026-11-23: Electron app** (`desktop/`), NSIS installer with Node, a signed python.org Python, yt-dlp and ffmpeg inside, updates from GitHub Releases. Design: `docs/superpowers/specs/2026-11-23-desktop-app-design.md`.
 
 ## 3. Remote library on the LWS server (stream over wifi, nothing stored on the laptop)
 

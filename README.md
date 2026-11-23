@@ -24,6 +24,7 @@ Spotify link                                   IN PROGRESS          todo        
 | Short term | **Instrumental separation**: MP3 in -> best possible instrumental MP3 out (RoFormer / Demucs models, ensembles) | **First version, testing**: pick a song + Fast / Best quality / Keep backing vocals, progress bar, listen, compare, download. Engine: RoFormer models + MSST TTA + UVR ensembles + karaoke-gen backing vocals ([module README](backend/modules/instrumentalSeparator/README.md)) |
 | Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting over FTP; listen from any laptop; 30 GB storage limit with a usage bar; songs put in `music/songs/` with FileZilla show up; sort and filter by date | **Done, works on the real hosting** (first test 2026-11-23) ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
 | Short term | **Cloud, live**: songs start while they download; one kept-open connection for listening, one for transfers; Online/Offline switch per laptop (Offline never connects); ⋮ menu on every song (rename, genre, delete); Download to cloud; Download from cloud | **Built, tested on a local FTP server** ([design](docs/superpowers/specs/2026-11-23-cloud-live-design.md)) |
+| Short term | **Windows app**: installer, in-app updates from GitHub Releases, profile switch (Poontje / MuttMutt), music folder picker | **Built** ([design](docs/superpowers/specs/2026-11-23-desktop-app-design.md)) |
 | Short term | **Shared playlists**: a Shared switch puts a playlist (and its songs) on the cloud; the other laptop sees it as "from <name>". Playlists store songs by identity, so they survive re-downloads and work on any laptop | **Done**, tested on a local FTP server ([design](docs/superpowers/specs/2026-11-21-shared-playlists-design.md)) |
 | Short term | **Official instrumental lookup**: find an "(Instrumental)" release before falling back to AI separation | Todo |
 | Short term | Player switch **original / instrumental only** | Todo (needs the separator) |
@@ -34,7 +35,22 @@ Spotify link                                   IN PROGRESS          todo        
 
 ## Run it
 
-Double-click `MuseHik.bat` (needs Node.js). It starts the server and opens the app in the browser.
+**The Windows app (for anyone, nothing else to install):** download `MuseHik-Setup-x.y.z.exe` from the
+[latest release](https://github.com/tylerBVT/MuseHik/releases/latest) and double-click it. Windows shows
+"Windows protected your PC" the first time (the installer is not signed): **More info > Run anyway**. MuseHik then
+appears in the Start menu, in Windows search and on the desktop, and opens in its own window. It updates itself:
+when a new version is downloaded, a bar says "A new version of MuseHik is ready" with **Restart now**.
+- Its settings and library index live in `%APPDATA%\MuseHik\`, songs in `Music\MuseHik\` (change it in Settings > Music folder),
+  its Python + yt-dlp copy, cloud cache and log (`logs\server.log`) in `%LOCALAPPDATA%\MuseHik\`. Uninstalling keeps them.
+- Settings > Who uses this laptop: **Poontje** sees the AI tools, **MuttMutt** does not. A new install starts as MuttMutt,
+  except where the instrumental separator is installed.
+
+**Release a new version** (from `main`, everything committed): `cd desktop && npm run release` (or `release minor`).
+It runs the tests, bumps the version, tags and pushes; GitHub Actions builds the installer and publishes it, and
+installed apps pick it up. Build an installer locally without publishing: `cd desktop && npm run dist` (output in `desktop/dist/`).
+Try the app window without installing: `cd desktop && npm start` (uses this folder's backend, data and Python).
+
+**From the code (development):** double-click `MuseHik.bat` (needs Node.js). It starts the server and opens the app in the browser.
 
 Developer setup:
 - `backend/`: `npm install`, copy `config.example.json` to `config.json`, Python venv in `backend/.venv`: `pip install -r requirements.txt` (yt-dlp then keeps itself up to date, see Settings). `npm test` runs the tests.
