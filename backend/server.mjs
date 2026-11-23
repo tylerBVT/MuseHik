@@ -12,7 +12,11 @@ import { scanLibrary } from './core/library.mjs';
 import { serveStatic } from './core/static.mjs';
 import * as musicDownloader from './modules/musicDownloader/routes.mjs';
 import { startAutoUpdates } from './modules/musicDownloader/updater.mjs';
-import { moveOldResults } from './modules/instrumentalSeparator/jobs.mjs';
+import { cancelAll as cancelSeparations, moveOldResults } from './modules/instrumentalSeparator/jobs.mjs';
+import { activeJob, cancelJob as cancelDownload } from './modules/musicDownloader/jobs.mjs';
+import { activeSave, cancelSave } from './modules/cloud/save.mjs';
+import { activeUpload, cancelUpload } from './modules/cloud/upload.mjs';
+import { closeLanes } from './modules/cloud/connections.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
 import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 import * as cloud from './modules/cloud/routes.mjs';
@@ -59,7 +63,10 @@ export async function start() {
   await moveOldResults().catch(e => console.error('Could not move old instrumentals:', e.message));
   const scan = await scanLibrary();
   console.log(`Library: ${scan.total} tracks (${scan.added} new, ${scan.removed} removed)`);
-  await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => {
+    server.once('error', reject); // e.g. EADDRINUSE: the desktop app shows it
+    server.listen(port, '127.0.0.1', resolve);
+  });
   const url = `http://127.0.0.1:${port}`;
   console.log(`Server on ${url}, saving to ${musicDir()}`);
   startAutoUpdates(); // yt-dlp: daily background update check
@@ -67,4 +74,25 @@ export async function start() {
   return url;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) await start();
+/** The app is closing: stops downloads, uploads and separations (and their yt-dlp / ffmpeg / python), then closes. */
+export async function stop() {
+  const download = activeJob();
+  if (download) cancelDownload(download.id);
+  const upload = activeUpload();
+  if (upload) cancelUpload(upload.id);
+  const save = activeSave();
+  if (save) cancelSave(save.id);
+  cancelSeparations();
+  await closeLanes().catch(() => {});
+  server.closeAllConnections?.();
+  await new Promise(resolve => server.close(() => resolve()));
+  await new Promise(resolve => setTimeout(resolve, 500)); // let the killed processes go
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await start();
+  // Started by the desktop app (desktop/main.mjs): it sends 'quit' when its window closes.
+  if (process.send) process.on('message', message => {
+    if (message === 'quit') stop().finally(() => process.exit(0));
+  });
+}

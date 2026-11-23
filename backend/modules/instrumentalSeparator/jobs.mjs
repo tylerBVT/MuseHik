@@ -118,6 +118,11 @@ export function cancelJob(id) {
   return job;
 }
 
+/** Stops every waiting or running separation (the app is closing). */
+export function cancelAll() {
+  for (const id of jobs.keys()) cancelJob(id);
+}
+
 async function next() {
   if (running || queue.length === 0) return;
   const id = queue.shift();

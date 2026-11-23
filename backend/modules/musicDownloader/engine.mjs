@@ -108,7 +108,8 @@ export async function whileIdle(fn) {
 // YouTube asks unknown computers to "sign in to confirm you're not a bot". The embedded-player client
 // (what other websites use to show a YouTube video) is usually spared that check, so yt-dlp also tries it.
 const YOUTUBE_CLIENTS = 'youtube:player_client=default,web_embedded';
-export const ytdlpArgs = args => [launcher, '--ignore-config', '--js-runtimes', 'node',
+// The Node running this server: the system one in dev, the bundled node.exe in the installed app (no Node on its PATH).
+export const ytdlpArgs = args => [launcher, '--ignore-config', '--js-runtimes', `node:${process.execPath}`,
   '--extractor-args', YOUTUBE_CLIENTS, '--ffmpeg-location', ffmpeg, ...args];
 
 async function ytdlp(args, options = {}) {

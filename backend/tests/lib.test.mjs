@@ -166,3 +166,10 @@ test('download report: groups failures, flags odd downloads, explains skips', as
   assert.match(text, /#5 E - Five[\s\S]*same as: #9 E - Five \(2:31\) \[same ISRC\]/);
   assert.equal(suspicious(job.downloaded[1]), null);
 });
+
+test('ytdlp uses the Node that runs the server', async () => {
+  // The installed app has no Node on the PATH: yt-dlp's YouTube challenge solver must use the bundled node.exe.
+  const { ytdlpArgs } = await import('../modules/musicDownloader/engine.mjs');
+  const args = ytdlpArgs([]);
+  assert.equal(args[args.indexOf('--js-runtimes') + 1], `node:${process.execPath}`);
+});
