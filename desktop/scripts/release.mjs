@@ -30,8 +30,9 @@ writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
 const tag = `v${pkg.version}`;
 git('add', file);
 git('commit', '-m', `release: ${tag}`);
-git('tag', tag);
-git('push', 'origin', 'main', '--follow-tags');
+git('tag', '-a', tag, '-m', `MuseHik ${tag}`);
+git('push', 'origin', 'main');
+git('push', 'origin', tag); // pushed by name: --follow-tags would skip it if it were not annotated
 const remote = git('remote', 'get-url', 'origin').replace(/\.git$/, '');
 console.log(`\nReleased ${tag}. The installer is being built: ${remote}/actions`);
 console.log('When it is done, installed apps download it and show "A new version of MuseHik is ready."');
