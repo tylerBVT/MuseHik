@@ -100,6 +100,7 @@ function stageBackend() {
     filter: src => !relative(from, src).split(sep).some(part => skip.has(part)) && !src.endsWith('.log'),
   });
   run('npm', ['ci', '--omit=dev', '--no-audit', '--no-fund'], to, { shell: true });
+  if (!existsSync(join(to, 'node_modules', 'music-metadata'))) throw new Error('The backend dependencies were not installed in stage/backend.');
 }
 
 function stageWeb() {
