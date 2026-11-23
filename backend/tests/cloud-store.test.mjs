@@ -94,3 +94,16 @@ test('rebuildIndex re-adds orphan files and drops entries without a file', async
   assert.equal(result.added, 1);
   assert.ok(result.removed >= 3);
 });
+
+test('a song the other laptop is adding, seen early as "added by hand", is listed once', async () => {
+  mkdirSync(cloudFile('songs'), { recursive: true });
+  writeFileSync(cloudFile('songs/X - Early.mp3'), Buffer.alloc(100));
+  await rebuildIndex(ftp.settings); // this laptop looks between the other laptop's rename and its addSong
+  const seenEarly = readCloud('library.json').songs.find(s => s.file === 'X - Early.mp3');
+  await withCloud(c => c.addSong(song('Early')), ftp.settings);
+  const entries = readCloud('library.json').songs.filter(s => s.file === 'X - Early.mp3');
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].duration, 180, 'the uploader\'s details win');
+  assert.notEqual(entries[0].addedBy, 'added by hand');
+  assert.equal(entries[0].id, seenEarly.id, 'same id, so a copy cached under it stays valid');
+});

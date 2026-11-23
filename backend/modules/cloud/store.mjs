@@ -53,13 +53,18 @@ export async function withCloud(fn, settings = loadSettings()) {
     },
     async addSong(entry) {
       const index = await readIndex();
+      // The other laptop may already list this file as "added by hand" (it looked between our rename and now):
+      // replace that entry, keeping its id.
+      const early = index.songs.find(s => s.file === entry.file);
       const song = {
-        id: index.nextId, file: entry.file, title: entry.title, artist: entry.artist || '', album: entry.album || '',
-        duration: entry.duration || 0, isrc: entry.isrc || null, key: trackKey(entry.artist || '', entry.title),
-        size: entry.size, addedBy: entry.addedBy || hostname(), addedAt: new Date().toISOString(),
+        id: early?.id ?? index.nextId, file: entry.file, title: entry.title, artist: entry.artist || '',
+        album: entry.album || '', duration: entry.duration || 0, isrc: entry.isrc || null,
+        key: trackKey(entry.artist || '', entry.title), size: entry.size, addedBy: entry.addedBy || hostname(),
+        addedAt: new Date().toISOString(),
       };
+      index.songs = index.songs.filter(s => s !== early);
       index.songs.push(song);
-      index.nextId = Math.max(index.nextId, song.id) + 1;
+      if (!early) index.nextId = Math.max(index.nextId, song.id) + 1;
       await writeIndex(index);
       return song;
     },
