@@ -1,7 +1,7 @@
 {
   "name": "musehik",
   "productName": "MuseHik",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MuseHik, the music app",
   "private": true,
   "type": "module",
