@@ -16,6 +16,7 @@ import { moveOldResults } from './modules/instrumentalSeparator/jobs.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
 import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 import * as cloud from './modules/cloud/routes.mjs';
+import * as app from './modules/app/routes.mjs';
 import { startPlaylistSync } from './modules/cloud/playlistSync.mjs';
 
 const port = Number(process.env.PORT || 3000);
@@ -23,7 +24,7 @@ const port = Number(process.env.PORT || 3000);
 const allowedOrigins = new Set([
   'http://localhost:4200', 'http://127.0.0.1:4200', `http://localhost:${port}`, `http://127.0.0.1:${port}`,
 ]);
-const modules = [musicDownloader, musicPlayer, instrumentalSeparator, cloud];
+const modules = [app, musicDownloader, musicPlayer, instrumentalSeparator, cloud];
 
 export const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;

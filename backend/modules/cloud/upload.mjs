@@ -3,7 +3,6 @@
 // both budgets, upload as "<name>.part.mp3", rename when complete (so the other laptop never sees half a song),
 // then add it to the shared index. Files listed in `removeAfter` ("Download to cloud") are deleted from this laptop
 // once the cloud has them (uploaded, or already there); a file that failed stays.
-import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readdir, rm, stat } from 'node:fs/promises';
@@ -183,22 +182,4 @@ export async function scanFolder(folder) {
   };
   await walk(folder);
   return songs.sort((a, b) => a.path.localeCompare(b.path));
-}
-
-/** Opens the Windows folder picker (on top of the browser). Resolves with the chosen folder, or null. */
-export function pickFolder() {
-  const script = [
-    'Add-Type -AssemblyName System.Windows.Forms',
-    '$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false }',
-    '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
-    '$dialog.Description = "Choose a folder of songs to upload to the cloud"',
-    'if ($dialog.ShowDialog($owner) -eq "OK") { [Console]::Out.Write($dialog.SelectedPath) }',
-  ].join('; ');
-  return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-Command', script], { windowsHide: true });
-    let out = '';
-    child.stdout.on('data', d => { out += d; });
-    child.on('error', reject);
-    child.on('close', () => resolve(out.trim() || null));
-  });
 }

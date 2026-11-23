@@ -65,6 +65,7 @@ const q = {
   remove: db.prepare('DELETE FROM tracks WHERE path = ?'),
   all: db.prepare('SELECT id, title, artist, album, genre, duration, size, added_ms FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE'),
   paths: db.prepare('SELECT path, size, mtime_ms, added_ms FROM tracks'),
+  movePath: db.prepare('UPDATE tracks SET path = ? WHERE path = ?'),
   count: db.prepare('SELECT COUNT(*) AS n FROM tracks'),
 };
 
@@ -117,6 +118,11 @@ export async function scanLibrary() {
   }
   for (const path of known.keys()) q.remove.run(path);
   return { added, removed: known.size, total: q.count.get().n };
+}
+
+/** The file moved (Settings > Music folder): same row, so the id, the download date and playlists stay. */
+export function movePath(from, to) {
+  q.movePath.run(to, from);
 }
 
 /** Removes a deleted file from the index. */

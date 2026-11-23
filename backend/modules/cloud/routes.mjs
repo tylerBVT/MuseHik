@@ -18,7 +18,8 @@ import { EditError, cloudStatus, lastIndex, rebuildIndex, syncFolder, withCloud 
 import { renameSongEverywhere, setShared } from '../musicPlayer/playlists.mjs';
 import { ownerName, requestSync, syncPlaylists } from './playlistSync.mjs';
 import { activeSave, cancelSave, getSave, startSave } from './save.mjs';
-import { activeUpload, cancelUpload, getUpload, pickFolder, queueUpload, scanFolder, startUpload } from './upload.mjs';
+import { pickFolder } from '../../core/pickFolder.mjs';
+import { activeUpload, cancelUpload, getUpload, queueUpload, scanFolder, startUpload } from './upload.mjs';
 
 /** A cloud song by id, from the local copy of the index (no network for every Range request of the player). */
 async function findSong(id) {
@@ -153,7 +154,7 @@ export async function handle(req, { res, json, cors }) {
     return true;
   }
 
-  if (method === 'POST' && url === '/api/cloud/folder/pick') { json(200, { path: await pickFolder() }); return true; }
+  if (method === 'POST' && url === '/api/cloud/folder/pick') { json(200, { path: await pickFolder('Choose a folder of songs to upload to the cloud') }); return true; }
   if (method === 'POST' && url === '/api/cloud/folder/scan') {
     json(200, { songs: await scanFolder(String((await readJson(req, 5000)).path ?? '')) });
     return true;

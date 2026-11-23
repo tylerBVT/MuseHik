@@ -84,6 +84,9 @@ export const getJob = id => jobs.get(id);
 export const activeJobFor = trackId =>
   [...jobs.values()].find(j => j.trackId === trackId && (j.status === 'queued' || j.status === 'running')) ?? null;
 
+/** A separation is waiting or running (the music folder must not change meanwhile). */
+export const separating = () => [...jobs.values()].some(j => j.status === 'queued' || j.status === 'running');
+
 export function startJob(trackId, method) {
   if (!methodIds.has(method)) throw new Error(`Unknown method "${method}".`);
   const track = getTrack(trackId);
