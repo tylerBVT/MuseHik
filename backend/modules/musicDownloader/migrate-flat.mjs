@@ -4,7 +4,8 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rmdir } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
-import { dataDir, outputDir } from '../../core/config.mjs';
+import { dataDir, musicDir } from '../../core/config.mjs';
+const outputDir = musicDir();
 import { AUDIO_EXTS } from '../../core/library.mjs';
 
 const apply = process.argv.includes('--apply');

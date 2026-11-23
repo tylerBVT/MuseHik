@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { copyFile, rename, rm } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { outputDir } from '../../core/config.mjs';
+import { musicDir } from '../../core/config.mjs';
 import { fileBase } from '../../core/lib.mjs';
 import { addFile, findDuplicate, freePath } from '../../core/library.mjs';
 import { writeTags } from '../../core/tags.mjs';
@@ -52,7 +52,7 @@ async function run(job, ids, settings, signal) {
   const list = await cloudList(settings);
   const songs = ids.map(id => list.find(s => s.id === id)).filter(Boolean);
   job.total = songs.length;
-  mkdirSync(outputDir, { recursive: true });
+  mkdirSync(musicDir(), { recursive: true });
   for (const song of songs) {
     if (signal.aborted) break;
     job.current = label(song);
@@ -62,7 +62,7 @@ async function run(job, ids, settings, signal) {
       continue;
     }
     const ext = extname(song.file).toLowerCase() || '.mp3';
-    const target = freePath(outputDir, fileBase(song.artist, song.title), ext);
+    const target = freePath(musicDir(), fileBase(song.artist, song.title), ext);
     const part = `${target.slice(0, -ext.length)}.part${ext}`;
     try {
       const cached = localSource(song);

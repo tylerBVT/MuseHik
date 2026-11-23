@@ -5,7 +5,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { readdir, rename, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { parseFile } from 'music-metadata';
-import { dataDir, outputDir } from './config.mjs';
+import { dataDir, musicDir } from './config.mjs';
 import { AUDIO_EXTS, fileBase, sameLength, sameSong, trackKey } from './lib.mjs';
 import { moveToTrash, writeTags } from './tags.mjs';
 
@@ -101,7 +101,7 @@ export async function scanLibrary() {
   const known = new Map(q.paths.all().map(r => [r.path, r]));
   let added = 0;
   try {
-    for await (const path of walk(outputDir)) {
+    for await (const path of walk(musicDir())) {
       const old = known.get(path);
       known.delete(path);
       const info = await stat(path);

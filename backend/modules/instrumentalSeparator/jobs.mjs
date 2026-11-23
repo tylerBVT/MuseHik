@@ -10,11 +10,11 @@ import { readdir, rename, rm, stat } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ffmpeg, heavyDir, outputDir, separatorModelsDir, separatorPython } from '../../core/config.mjs';
+import { ffmpeg, heavyDir, musicDir, separatorModelsDir, separatorPython } from '../../core/config.mjs';
 import { addFile, forgetFile, getTrack } from '../../core/library.mjs';
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
-export const resultsDir = outputDir;
+export const resultsDir = () => musicDir();
 export const methods = JSON.parse(readFileSync(join(moduleDir, 'methods.json'), 'utf8'));
 const methodIds = new Set(methods.map(m => m.id));
 const SUFFIX = {
@@ -29,7 +29,7 @@ const queue = [];            // ids waiting
 let running = null;          // id running
 
 const songBase = track => basename(track.path, extname(track.path));
-export const resultPath = (track, method) => join(resultsDir, `${songBase(track)}${SUFFIX[method]}.mp3`);
+export const resultPath = (track, method) => join(resultsDir(), `${songBase(track)}${SUFFIX[method]}.mp3`);
 
 /**
  * Instrumentals used to be kept in <heavyDir>/instrumentals as "<song> [<method>].mp3": moves them next to the
@@ -41,7 +41,7 @@ export async function moveOldResults() {
   for (const name of await readdir(oldDir).catch(() => [])) {
     const m = name.match(/^(.*) \[(fast|best|backing)\]\.mp3$/);
     if (!m) continue;
-    const target = join(resultsDir, `${m[1]}${SUFFIX[m[2]]}.mp3`);
+    const target = join(resultsDir(), `${m[1]}${SUFFIX[m[2]]}.mp3`);
     if (existsSync(target)) continue;
     await rename(join(oldDir, name), target);
     moved++;
@@ -187,7 +187,7 @@ async function run(job) {
 async function removePartials(output) {
   await new Promise(r => setTimeout(r, 500)); // let the killed process release its files
   const prefix = basename(output);
-  for (const name of await readdir(resultsDir).catch(() => [])) {
-    if (name.startsWith(`${prefix}.part`)) await rm(join(resultsDir, name), { force: true }).catch(() => {});
+  for (const name of await readdir(resultsDir()).catch(() => [])) {
+    if (name.startsWith(`${prefix}.part`)) await rm(join(resultsDir(), name), { force: true }).catch(() => {});
   }
 }

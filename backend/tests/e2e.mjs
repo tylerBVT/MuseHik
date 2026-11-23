@@ -2,7 +2,7 @@
 // Usage: node e2e.mjs        (downloads 3 small files into ../downloadedMusic)
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { outputDir } from '../core/config.mjs';
+import { musicDir } from '../core/config.mjs';
 
 const API = process.env.API || 'http://127.0.0.1:3000/api';
 const cases = [
@@ -22,7 +22,7 @@ async function runCase({ name, url }) {
     if (job.status === 'running') { await new Promise(r => setTimeout(r, 1500)); continue; }
     const files = job.files.filter(f => existsSync(f));
     const ok = job.status === 'done' && files.length === job.files.length && files.length > 0;
-    return { name, ok, detail: ok ? files.map(f => f.replace(outputDir + '\\', '')).join(', ') : (job.error || JSON.stringify(job.failed)) };
+    return { name, ok, detail: ok ? files.map(f => f.replace(musicDir() + '\\', '')).join(', ') : (job.error || JSON.stringify(job.failed)) };
   }
 }
 

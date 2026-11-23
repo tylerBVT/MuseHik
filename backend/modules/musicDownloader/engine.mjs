@@ -4,10 +4,10 @@ import { rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rankMatches } from '../../core/lib.mjs';
-import { ffmpeg, outputDir, python } from '../../core/config.mjs';
+import { ffmpeg, musicDir, python } from '../../core/config.mjs';
 import { explain, explainedError } from './errors.mjs';
 
-export { outputDir, python };
+export { musicDir, python };
 
 const here = dirname(fileURLToPath(import.meta.url));
 const launcher = join(here, 'ytdlp_launcher.py'); // yt-dlp + DNS fallback (see file header)

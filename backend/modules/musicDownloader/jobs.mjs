@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { basename, extname, join } from 'node:path';
 import { dataDir } from '../../core/config.mjs';
 import {
-  clock, downloadAudio, findOnYoutube, outputDir, sleep, tagFile, youtubeBlockStreak, youtubeBlockedUntil,
+  clock, downloadAudio, findOnYoutube, musicDir, sleep, tagFile, youtubeBlockStreak, youtubeBlockedUntil,
 } from './engine.mjs';
 import { explain } from './errors.mjs';
 import { detect } from './services/index.mjs';
@@ -66,7 +66,7 @@ const matchInfo = row => ({
 /** First free "<base>.mp3" name: never overwrites a different song that happens to share the name. */
 function freeBase(base) {
   let candidate = base;
-  for (let n = 2; existsSync(join(outputDir, `${candidate}.mp3`)); n++) candidate = `${base} (${n})`;
+  for (let n = 2; existsSync(join(musicDir(), `${candidate}.mp3`)); n++) candidate = `${base} (${n})`;
   return candidate;
 }
 
@@ -132,7 +132,7 @@ async function downloadTrack(track, label, ctx, onBase, rec) {
   onBase(base);
   const template = incoming
     ? join(incoming, '%(artist,uploader)s - %(title)s.%(ext)s')
-    : join(outputDir, `${base}.%(ext)s`);
+    : join(musicDir(), `${base}.%(ext)s`);
   try {
     return await downloadCandidates(track, label, ctx, { candidates, direct, base, template, rec });
   } finally {
@@ -143,7 +143,7 @@ async function downloadTrack(track, label, ctx, onBase, rec) {
 /** Moves a checked file from the private download folder into the library folder under a free name. */
 async function moveIn(file) {
   const name = basename(file, extname(file));
-  const target = join(outputDir, `${freeBase(name)}${extname(file)}`);
+  const target = join(musicDir(), `${freeBase(name)}${extname(file)}`);
   try {
     await rename(file, target);
   } catch (e) {
@@ -199,8 +199,8 @@ async function cleanupUnfinished(bases, settleMs = 700) {
   const prefixes = bases.filter(Boolean).map(b => `${b}.`);
   if (!prefixes.length) return;
   await new Promise(r => setTimeout(r, settleMs)); // let killed child processes release their files
-  for (const name of await readdir(outputDir)) {
-    if (prefixes.some(p => name.startsWith(p))) await rm(join(outputDir, name), { force: true }).catch(() => {});
+  for (const name of await readdir(musicDir())) {
+    if (prefixes.some(p => name.startsWith(p))) await rm(join(musicDir(), name), { force: true }).catch(() => {});
   }
 }
 
@@ -222,7 +222,7 @@ async function processJob(job, signal) {
         + 'not block it, so this takes hours. You can keep using the app; if it is interrupted, paste the same link '
         + 'again: songs already downloaded are skipped in seconds.');
     }
-    await mkdir(outputDir, { recursive: true });
+    await mkdir(musicDir(), { recursive: true });
 
     // Each finished file stays on disk (and in the index) immediately, so stopping keeps all progress.
     const queue = [...tracks];
@@ -364,7 +364,7 @@ export function startJob(url, { cloudOnly = false } = {}) {
   const job = {
     id: randomUUID(), url: String(url ?? '').trim(), platform: '', status: 'running', name: '', total: 0, done: 0,
     cloudOnly: Boolean(cloudOnly),
-    skipped: 0, current: 'Reading link...', files: [], downloaded: [], skippedList: [], failed: [], notes: [], folder: outputDir,
+    skipped: 0, current: 'Reading link...', files: [], downloaded: [], skippedList: [], failed: [], notes: [], folder: musicDir(),
     startedAt: new Date().toISOString(),
   };
   const controller = new AbortController();

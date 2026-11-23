@@ -3,7 +3,8 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { backendRoot } from './config.mjs';
 
-export const webRoot = join(backendRoot, '..', 'frontend', 'dist', 'musehik-frontend', 'browser');
+// The installed app ships the built files elsewhere (desktop/ sets MUSEHIK_WEB_ROOT).
+export const webRoot = process.env.MUSEHIK_WEB_ROOT || join(backendRoot, '..', 'frontend', 'dist', 'musehik-frontend', 'browser');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.ico': 'image/x-icon',

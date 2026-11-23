@@ -7,7 +7,7 @@
 import http from 'node:http';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { outputDir, python } from './core/config.mjs';
+import { musicDir, python } from './core/config.mjs';
 import { scanLibrary } from './core/library.mjs';
 import { serveStatic } from './core/static.mjs';
 import * as musicDownloader from './modules/musicDownloader/routes.mjs';
@@ -60,7 +60,7 @@ export async function start() {
   console.log(`Library: ${scan.total} tracks (${scan.added} new, ${scan.removed} removed)`);
   await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${port}`;
-  console.log(`Server on ${url}, saving to ${outputDir}`);
+  console.log(`Server on ${url}, saving to ${musicDir()}`);
   startAutoUpdates(); // yt-dlp: daily background update check
   startPlaylistSync(); // shared playlists: now, every 5 min, and after each change
   return url;
