@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+    <title>MuseHik</title>
+    <style>
+      :root {
+        --bg: #f9fafb;
+        --text: #101828;
+        --muted: #667085;
+        --accent: #7f56d9;
+        --box: #ffffff;
+        --border: #eaecf0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1117;
+          --text: #f2f4f7;
+          --muted: #98a2b3;
+          --accent: #a48ae8;
+          --box: #161b26;
+          --border: #1f242f;
+        }
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.5 'Segoe UI', system-ui, sans-serif;
+      }
+      main {
+        max-width: 720px;
+        padding: 24px;
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 2rem;
+      }
+      .spinner {
+        width: 28px;
+        height: 28px;
+        margin: 16px auto;
+        border: 3px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      pre {
+        max-height: 320px;
+        overflow: auto;
+        padding: 12px;
+        text-align: left;
+        white-space: pre-wrap;
+        font-size: 0.8rem;
+        background: var(--box);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MuseHik</h1>
+      <div id="spinner" class="spinner" aria-hidden="true"></div>
+      <p id="text">Starting MuseHik...</p>
+      <pre id="details" hidden></pre>
+      <p id="log" class="muted" hidden></p>
+    </main>
+    <script>
+      const q = new URLSearchParams(location.search);
+      const error = q.get('error');
+      document.getElementById('text').textContent = error || q.get('text') || 'Starting MuseHik...';
+      if (error) {
+        document.getElementById('spinner').hidden = true;
+        const details = q.get('details');
+        if (details) Object.assign(document.getElementById('details'), { hidden: false, textContent: details });
+        const log = q.get('log');
+        if (log) Object.assign(document.getElementById('log'), { hidden: false, textContent: `Full log: ${log}` });
+      }
+    </script>
+  </body>
+</html>

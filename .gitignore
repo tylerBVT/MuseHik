@@ -24,3 +24,8 @@ backend/data/
 
 # Plan execution scratch (superpowers)
 .superpowers/
+
+# Desktop app build output
+desktop/stage/
+desktop/dist/
+desktop/server.log

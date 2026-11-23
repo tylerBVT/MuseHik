@@ -1,0 +1,21 @@
+{
+  "name": "musehik",
+  "productName": "MuseHik",
+  "version": "1.0.0",
+  "description": "MuseHik, the music app",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "author": "tylerBVT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0"
+  }
+}
