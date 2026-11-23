@@ -31,6 +31,14 @@
             <option [value]="option.value" [selected]="option.value === since()">{{ option.label }}</option>
           }
         </select>
+        @if (genres().length) {
+          <select class="menu" aria-label="Show genre" [value]="genre()" (change)="onGenre($event)">
+            <option value="" [selected]="!genre()">Any genre</option>
+            @for (g of genres(); track g) {
+              <option [value]="g" [selected]="g === genre()">{{ g }}</option>
+            }
+          </select>
+        }
       }
     </div>
   </header>
@@ -45,7 +53,7 @@
     @if (query()) {
       <p class="notice">No song matches "{{ query() }}".</p>
     } @else {
-      <p class="notice">No song added in this period.</p>
+      <p class="notice">No song matches the chosen period or genre.</p>
     }
   }
 
@@ -98,7 +106,22 @@
           <span class="album">{{ track.album }}</span>
           <span class="time">{{ formatTime(track.duration) }}</span>
         </button>
+        @if (!track.unavailable) {
+          <button
+            type="button"
+            class="more"
+            [attr.aria-label]="'More for ' + track.title"
+            title="Rename, genre, delete..."
+            (click)="menuFor.set(track)"
+          >
+            &#8942;
+          </button>
+        }
       </li>
     }
   </ul>
 </section>
+
+@if (menuFor(); as track) {
+  <app-song-menu [track]="track" [genres]="genres()" (closed)="menuFor.set(null)" (changed)="changed.emit()" />
+}

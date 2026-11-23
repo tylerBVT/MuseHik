@@ -5,9 +5,11 @@ export type View =
   | { page: 'settings' }
   | { page: 'tracks' }
   | { page: 'download' }
+  | { page: 'download-cloud' }
   | { page: 'separate' }
   | { page: 'cloud' }
   | { page: 'cloud-upload' }
+  | { page: 'cloud-save' }
   | { page: 'create' }
   | { page: 'playlist'; id: number }
   | { page: 'edit'; id: number };

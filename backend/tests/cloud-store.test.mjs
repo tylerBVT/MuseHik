@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { startFtp } from './ftp-fixture.mjs';
 
 process.env.CLOUD_SETTINGS = join(mkdtempSync(join(tmpdir(), 'cloud-store-')), 'cloud.json');
-const { monthKey } = await import('../modules/cloud/limits.mjs');
 const { lastIndex, rebuildIndex, withCloud } = await import('../modules/cloud/store.mjs');
 
 let ftp;
@@ -48,26 +47,12 @@ test('removeSong deletes the file and the entry', async () => {
   assert.deepEqual((await withCloud(c => c.session.list('songs'), ftp.settings)).map(f => f.name).includes('X - Gone.mp3'), false);
 });
 
-test('usage is added at the end of a session even after an error', async () => {
-  const before = readCloudUsage();
+test('an error inside withCloud reaches the caller and leaves the connection usable', async () => {
   await assert.rejects(withCloud(async cloud => {
     await cloud.index();
     throw new Error('boom');
   }, ftp.settings), /boom/);
-  assert.ok(readCloudUsage() > before, `${readCloudUsage()} > ${before}`);
-});
-
-function readCloudUsage() {
-  try { return readCloud('usage.json').months[monthKey()].bytes; } catch { return 0; }
-}
-
-test('ensureRoom never refuses because of traffic (her hosting has no traffic limit)', async () => {
-  const month = monthKey();
-  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: { [month]: { bytes: 500e9 } } }));
-  await withCloud(async cloud => {
-    await cloud.ensureRoom(2e9);
-  }, ftp.settings);
-  writeFileSync(cloudFile('usage.json'), JSON.stringify({ months: {} }));
+  assert.ok(Array.isArray((await withCloud(c => c.index(), ftp.settings)).songs));
 });
 
 test('ensureRoom with storage checks the 30 GB cap', async () => {

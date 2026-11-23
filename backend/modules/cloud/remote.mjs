@@ -1,6 +1,6 @@
 // One FTP(S) connection to the cloud, confined to the configured folder (the hosting also holds websites: MuseHik
-// must never touch anything outside its folder). Every byte that crosses the network is counted in `bytes`,
-// so the caller can add it to the monthly traffic counter.
+// must never touch anything outside its folder). It can stay open for a long time (connections.mjs): when the server
+// has dropped it, the next call reconnects.
 import { posix } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Client } from 'basic-ftp';
@@ -88,16 +88,11 @@ export async function openSession(settings) {
   }
   const root = await client.pwd();
   const at = name => posix.join(root, safeName(name));
-  let onBytes = null;
-  let bytesBefore = 0; // bytes of the connections closed by a Stop (the tracker restarts at 0 on a new one)
-  const track = () => client.trackProgress(info => {
-    session.bytes = bytesBefore + info.bytesOverall;
-    onBytes?.(info.bytes);
-  });
+  let onBytes = null; // progress of the transfer running now: bytes so far
+  const track = () => client.trackProgress(info => onBytes?.(info.bytes));
   track();
-  // Stop closes the connection mid-transfer; the next call reconnects, so the caller can still clean up.
+  // Stop closes the connection mid-transfer, and the server may drop an idle one: the next call reconnects.
   const reconnect = async () => {
-    bytesBefore = session.bytes;
     ({ client } = await connectBest(settings));
     await client.cd(root);
     track();
@@ -109,7 +104,9 @@ export async function openSession(settings) {
     const next = queue.then(async () => {
       try {
         if (client.closed) await reconnect();
-        return await work();
+        const result = await work();
+        session.lastOk = Date.now();
+        return result;
       } catch (e) { throw e.message?.startsWith('Cloud: ') ? e : plainError(e, settings); }
     });
     queue = next.catch(() => {});
@@ -131,7 +128,18 @@ export async function openSession(settings) {
 
   const session = {
     secure,
-    bytes: 0,
+    /** When a call last worked (a lane silent for long is checked before use). */
+    lastOk: Date.now(),
+    /** Checks the connection is alive; no answer within `timeoutMs` closes it, so the next call reconnects. */
+    ping: (timeoutMs = 3000) => run(async () => {
+      let timer;
+      const late = new Promise((_, reject) => {
+        timer = setTimeout(() => { client.close(); reject(new Error('Cloud: the connection did not answer.')); }, timeoutMs);
+      });
+      try { await Promise.race([client.send('NOOP'), late]); } finally { clearTimeout(timer); }
+    }),
+    /** Exact size of a file on the cloud, in bytes. */
+    size: name => run(() => client.size(at(name))),
     readJson: name => run(async () => {
       const path = at(name);
       const chunks = [];
@@ -155,7 +163,11 @@ export async function openSession(settings) {
       onBytes = progress ?? null;
       try { await withSignal(signal, () => client.uploadFrom(localPath, path)); } finally { onBytes = null; }
     }),
-    download: (name, localPath, { signal } = {}) => run(() => withSignal(signal, () => client.downloadTo(localPath, at(name)))),
+    /** `target`: a local path or a Writable. `onBytes(n)`: bytes received so far. */
+    download: (name, target, { signal, onBytes: progress } = {}) => run(async () => {
+      onBytes = progress ?? null;
+      try { await withSignal(signal, () => client.downloadTo(target, at(name))); } finally { onBytes = null; }
+    }),
     remove: name => run(() => client.remove(at(name))),
     rename: (from, to) => run(() => client.rename(at(from), at(to))),
     list: subdir => run(async () => {

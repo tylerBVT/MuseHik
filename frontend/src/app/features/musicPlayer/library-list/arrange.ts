@@ -32,20 +32,41 @@ const byDate = (direction: 1 | -1) => (a: Track, b: Track) => {
   return (ta - tb) * direction;
 };
 
-/** The songs to show: text search (every word in title, artist or album), then the period, then the sort. */
+/** Each genre present once, sorted (the Genre menu). Same genre in another case counts once. */
+export function genresOf(tracks: Track[]): string[] {
+  const seen = new Map<string, string>();
+  for (const track of tracks) {
+    const genre = track.genre?.trim();
+    if (genre && !seen.has(genre.toLowerCase())) seen.set(genre.toLowerCase(), genre);
+  }
+  return [...seen.values()].sort(byText);
+}
+
+/**
+ * The songs to show: text search (every word in title, artist, album or genre), then the genre ('' = any) and the
+ * period, then the sort.
+ */
 export function arrange(
   tracks: Track[],
-  { query, sort, since, now = new Date() }: { query: string; sort: SortBy; since: Since; now?: Date },
+  {
+    query,
+    sort,
+    since,
+    genre = '',
+    now = new Date(),
+  }: { query: string; sort: SortBy; since: Since; genre?: string; now?: Date },
 ): Track[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const from = since === 'any' ? null : now.getTime() - Number(since) * DAY_MS;
+  const wantedGenre = genre.trim().toLowerCase();
   const shown = tracks.filter((track) => {
+    if (wantedGenre && (track.genre ?? '').trim().toLowerCase() !== wantedGenre) return false;
     if (from !== null) {
       const at = time(track);
       if (at === null || at < from) return false;
     }
     if (!words.length) return true;
-    const text = `${track.title} ${track.artist} ${track.album}`.toLowerCase();
+    const text = `${track.title} ${track.artist} ${track.album} ${track.genre ?? ''}`.toLowerCase();
     return words.every((word) => text.includes(word));
   });
   switch (sort) {

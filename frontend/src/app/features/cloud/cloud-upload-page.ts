@@ -71,7 +71,9 @@ export class CloudUploadPage implements OnInit, OnDestroy {
       : null;
   });
   protected readonly running = computed(() => this.job()?.state === 'running');
-  protected readonly canUpload = computed(() => this.selection().count > 0 && !this.running() && !this.busy());
+  protected readonly canUpload = computed(
+    () => this.selection().count > 0 && !this.running() && !this.busy() && this.cloud.status()?.online !== false,
+  );
   protected readonly percent = computed(() => {
     const job = this.job();
     return job && job.bytesTotal ? Math.round((job.bytesDone / job.bytesTotal) * 100) : 0;

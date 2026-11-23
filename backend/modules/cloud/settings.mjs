@@ -12,6 +12,8 @@ export const localFile = name => join(dirname(file()), name);
 export const DEFAULTS = Object.freeze({
   host: '', port: 21, user: '', password: '', folder: 'music', name: '',
   storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
+  // Offline: this laptop never connects to the cloud (songs already on it still play).
+  online: true,
 });
 
 export function loadSettings() {
@@ -42,6 +44,7 @@ export function saveSettings(patch) {
   if (patch.storageLimitGB !== undefined) next.storageLimitGB = positive(patch.storageLimitGB, 'Storage limit');
   if (patch.cacheLimitGB !== undefined) next.cacheLimitGB = positive(patch.cacheLimitGB, 'Cache size');
   if (patch.allowPlainFtp !== undefined) next.allowPlainFtp = Boolean(patch.allowPlainFtp);
+  if (patch.online !== undefined) next.online = Boolean(patch.online);
   next.folder = next.folder.replace(/^\/+|\/+$/g, '');
   if (!next.folder || next.folder.split('/').some(part => !part || part === '.' || part === '..'))
     throw new Error('The cloud folder must be a plain folder name like "music".');
@@ -56,3 +59,8 @@ export function publicSettings(settings) {
 }
 
 export const isConfigured = s => Boolean(s.host && s.user && s.password);
+
+/** Set up, and allowed to connect on this laptop (the Online / Offline switch in Settings). */
+export const isOnline = s => isConfigured(s) && s.online !== false;
+
+export const OFFLINE_MESSAGE = 'The cloud is offline on this laptop. Turn it on in Settings.';

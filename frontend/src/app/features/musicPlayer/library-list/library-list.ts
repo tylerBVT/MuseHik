@@ -1,11 +1,13 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { Track, coverUrl, formatTime } from '../../../core/api';
 import { LibraryService } from '../../../core/library.service';
 import { PlayerService } from '../player.service';
-import { PERIODS, SORTS, Since, SortBy, arrange, formatDay } from './arrange';
+import { SongMenu } from '../song-menu/song-menu';
+import { PERIODS, SORTS, Since, SortBy, arrange, formatDay, genresOf } from './arrange';
 
 /** The song list with a text filter (plus sort and period menus when `sortable`). Click a song to play it; next/previous follow this list. */
 @Component({
+  imports: [SongMenu],
   selector: 'app-library-list',
   templateUrl: './library-list.html',
   styleUrl: './library-list.css',
@@ -19,6 +21,8 @@ export class LibraryList {
   readonly onLaptop = input<ReadonlySet<number> | null>(null);
   /** Shows the sort and period menus (not on playlists, whose order is the playlist's). */
   readonly sortable = input(false);
+  /** A song was renamed, deleted... from its ⋮ menu: the page reloads its songs. */
+  readonly changed = output<void>();
 
   protected readonly library = inject(LibraryService);
   protected readonly player = inject(PlayerService);
@@ -26,6 +30,11 @@ export class LibraryList {
   protected readonly query = signal('');
   protected readonly sort = signal<SortBy>('default');
   protected readonly since = signal<Since>('any');
+  /** '' = any genre. */
+  protected readonly genre = signal('');
+  protected readonly genres = computed(() => genresOf(this.tracks()));
+  /** The song whose ⋮ menu is open. */
+  protected readonly menuFor = signal<Track | null>(null);
   protected readonly sorts = SORTS;
   protected readonly periods = PERIODS;
   protected readonly formatTime = formatTime;
@@ -39,6 +48,7 @@ export class LibraryList {
       query: this.query(),
       sort: this.sortable() ? this.sort() : 'default',
       since: this.sortable() ? this.since() : 'any',
+      genre: this.sortable() ? this.genre() : '',
     }),
   );
 
@@ -50,6 +60,9 @@ export class LibraryList {
   }
   protected onSince(event: Event): void {
     this.since.set((event.target as HTMLSelectElement).value as Since);
+  }
+  protected onGenre(event: Event): void {
+    this.genre.set((event.target as HTMLSelectElement).value);
   }
 
   protected play(track: Track): void {

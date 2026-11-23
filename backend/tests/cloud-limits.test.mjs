@@ -5,22 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.CLOUD_SETTINGS = join(mkdtempSync(join(tmpdir(), 'cloud-settings-')), 'cloud.json');
-const { checkStorage, LimitError, monthKey, usageSummary } = await import('../modules/cloud/limits.mjs');
+const { checkStorage, LimitError, usageSummary } = await import('../modules/cloud/limits.mjs');
 const { isConfigured, loadSettings, publicSettings, saveSettings } = await import('../modules/cloud/settings.mjs');
 
 const GB = 1e9;
 
-test('monthKey pads the month', () => {
-  assert.equal(monthKey(new Date(2026, 2, 9)), '2026-03');
-  assert.equal(monthKey(new Date(2026, 10, 21)), '2026-11');
-});
-
-test('usageSummary: storage bar warns at 80 %, traffic is only counted', () => {
+test('usageSummary: storage bar warns at 80 %, traffic is not counted', () => {
   const settings = { storageLimitGB: 30 };
-  const date = new Date(2026, 10, 21);
-  const s = usageSummary({ usage: { months: { '2026-11': { bytes: 80 * GB } } }, settings, storedBytes: 24 * GB, date });
-  assert.equal(s.month, '2026-11');
-  assert.equal(s.usedBytes, 80 * GB, 'any amount of traffic is fine');
+  const s = usageSummary({ settings, storedBytes: 24 * GB });
+  assert.equal('usedBytes' in s, false);
+  assert.equal('month' in s, false);
   assert.equal(s.storedBytes, 24 * GB);
   assert.equal(s.storageLimitBytes, 30 * GB);
   assert.equal(s.percent, 80);
@@ -28,8 +22,7 @@ test('usageSummary: storage bar warns at 80 %, traffic is only counted', () => {
   assert.equal('limitBytes' in s, false);
   assert.equal('reached' in s, false);
 
-  const calm = usageSummary({ usage: null, settings, storedBytes: 3 * GB, date });
-  assert.equal(calm.usedBytes, 0);
+  const calm = usageSummary({ settings, storedBytes: 3 * GB });
   assert.equal(calm.percent, 10);
   assert.equal(calm.warning, false);
 });

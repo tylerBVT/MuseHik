@@ -13,6 +13,7 @@ import { PageHeader } from '../../../shared/page-header';
       heading="Songs"
       [tracks]="library.tracks()"
       [sortable]="true"
+      (changed)="library.load()"
       emptyMessage="Your library is empty. Use “Download new tracks” on the main page to add music."
     />
   `,

@@ -20,8 +20,9 @@ import { explain } from './errors.mjs';
 import { detect } from './services/index.mjs';
 import { saveReport } from './report.mjs';
 import { updateAfterFailure, versions } from './updater.mjs';
-import { fileBase, trackKey } from '../../core/lib.mjs';
+import { fileBase, sameIdentity, trackKey } from '../../core/lib.mjs';
 import { addFile, db, duplicateOfFile, findDuplicate } from '../../core/library.mjs';
+import { lastIndex, syncFolder, withCloud } from '../cloud/store.mjs';
 import { queueUpload } from '../cloud/upload.mjs';
 
 const MAX_TRACKS = 10000; // a safety net only: Deezer playlists hold at most 10,000 songs
@@ -95,6 +96,9 @@ async function fetchAudio(url, template, ctx) {
  * `rec` collects what happened (step reached, uploads found and tried) for the download report.
  */
 async function downloadTrack(track, label, ctx, onBase, rec) {
+  // "Download to cloud": a song the cloud already has is not downloaded at all.
+  const twin = ctx.cloudSongs && track.title && ctx.cloudSongs.find(s => sameIdentity(s, track));
+  if (twin) return { skipped: `Already on the cloud as "${twin.artist ? `${twin.artist} - ` : ''}${twin.title}"`, onCloud: true };
   rec.stage = 'library check';
   const direct = Boolean(track.sourceUrl); // YouTube link: no search, keep yt-dlp's own tags
   const key = track.title ? trackKey(track.artist, track.title) : null;
@@ -224,7 +228,7 @@ async function processJob(job, signal) {
     const queue = [...tracks];
     const inFlight = new Map(); // track -> file base name (for cleanup)
     // Shared by all workers: `update` is the one yt-dlp update this job may run (see fetchAudio).
-    const ctx = { job, signal, claimed: new Set(), update: null };
+    const ctx = { job, signal, claimed: new Set(), update: null, cloudSongs: job.cloudOnly ? await cloudSongs() : null };
     const pauses = new Set(); // distinct YouTube blocks this job waited out
     const worker = async () => {
       for (let track; !signal.aborted && !blocked && (track = queue.shift());) {
@@ -239,7 +243,9 @@ async function processJob(job, signal) {
             job.files.push(result.file);
             job.downloaded.push({ track: label, song: songInfo(track), file: basename(result.file), used: result.used });
           } else {
-            job.skippedList.push({ track: label, reason: result.skipped, song: songInfo(track), match: result.match });
+            job.skippedList.push({
+              track: label, reason: result.skipped, song: songInfo(track), match: result.match, onCloud: result.onCloud,
+            });
             job.skipped++;
           }
           job.done++;
@@ -304,7 +310,7 @@ async function processJob(job, signal) {
     if (!signal.aborted) Object.assign(job, explain(e));
   }
   job.current = '';
-  if (job.toCloud) sendToCloud(job);
+  if (job.cloudOnly) sendToCloud(job);
   job.finishedAt = new Date().toISOString();
   job.ytdlp = (await versions().catch(() => null))?.ytdlp ?? null;
   try {
@@ -321,13 +327,24 @@ async function processJob(job, signal) {
   }
 }
 
+/** The cloud's songs, read when a "Download to cloud" starts (the last list seen if the cloud does not answer). */
+async function cloudSongs() {
+  try {
+    return await withCloud(async cloud => { await syncFolder(cloud); return (await cloud.index()).songs; });
+  } catch {
+    return lastIndex()?.songs ?? [];
+  }
+}
+
 /**
- * What "Also send to the cloud" uploads: the songs this download got, plus the ones it skipped because the library
- * already had them (the upload itself skips songs the cloud already has).
+ * What "Download to cloud" uploads: the songs this download got (deleted from the laptop once on the cloud), plus the
+ * ones it skipped because the library already had them (sent from the library and kept there). The upload itself
+ * skips songs the cloud already has.
  */
 export const cloudSelection = job => ({
   paths: [...job.files],
   trackIds: job.skippedList.map(s => s.match?.id).filter(Number.isInteger),
+  removeAfter: [...job.files],
 });
 
 /** At the end of a download (finished or stopped): hands its songs to the cloud upload (it waits if one is running). */
@@ -342,11 +359,11 @@ function sendToCloud(job) {
   }
 }
 
-/** Starts a download. `toCloud`: upload its songs to the cloud when it ends. */
-export function startJob(url, { toCloud = false } = {}) {
+/** Starts a download. `cloudOnly` ("Download to cloud"): its songs go to the cloud and leave this laptop. */
+export function startJob(url, { cloudOnly = false } = {}) {
   const job = {
     id: randomUUID(), url: String(url ?? '').trim(), platform: '', status: 'running', name: '', total: 0, done: 0,
-    toCloud: Boolean(toCloud),
+    cloudOnly: Boolean(cloudOnly),
     skipped: 0, current: 'Reading link...', files: [], downloaded: [], skippedList: [], failed: [], notes: [], folder: outputDir,
     startedAt: new Date().toISOString(),
   };

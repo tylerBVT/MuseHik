@@ -1,6 +1,6 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { NavService } from '../../../core/nav.service';
-import { CloudService } from '../../cloud/cloud.service';
+import { CloudService, cloudOnline } from '../../cloud/cloud.service';
 import { Playlist, PlaylistService, toTracks } from '../playlist.service';
 import { LibraryList } from '../library-list/library-list';
 import { PageHeader } from '../../../shared/page-header';
@@ -78,7 +78,8 @@ import { PageHeader } from '../../../shared/page-header';
           class="action share"
           role="switch"
           [attr.aria-checked]="current.shared"
-          [disabled]="busy()"
+          [disabled]="busy() || (!current.shared && !canShare())"
+          [title]="canShare() ? '' : 'Sharing needs the cloud: set it up and turn it on in Settings.'"
           (click)="toggleShared()"
         >
           <span class="switch" aria-hidden="true"></span> Shared
@@ -102,6 +103,7 @@ import { PageHeader } from '../../../shared/page-header';
       <app-library-list
         heading="Songs"
         [tracks]="tracks()"
+        (changed)="reload()"
         emptyMessage="This playlist is empty. Press Edit to add songs."
       />
     } @else if (missing()) {
@@ -120,6 +122,8 @@ export class PlaylistPage implements OnInit {
   protected readonly busy = signal(false);
   protected readonly message = signal<{ text: string; error: boolean } | null>(null);
   private readonly myName = signal<string | null>(null);
+  /** Sharing needs the cloud set up and Online on this laptop (unsharing always works). */
+  protected readonly canShare = computed(() => cloudOnline(this.cloud.settings()));
 
   protected readonly tracks = computed(() => toTracks(this.playlist()?.songs ?? []));
   protected readonly fromOther = computed(() => {
@@ -135,6 +139,11 @@ export class PlaylistPage implements OnInit {
       .getSettings()
       .then((s) => this.myName.set(s.displayName))
       .catch(() => {});
+  }
+
+  /** After a change from a song's ⋮ menu (a renamed song keeps its place; a deleted one shows as not available). */
+  protected async reload(): Promise<void> {
+    this.playlist.set(await this.playlists.get(this.id()));
   }
 
   protected async toggleShared(): Promise<void> {

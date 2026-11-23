@@ -1,5 +1,5 @@
 import { Track } from '../../../core/api';
-import { arrange, formatDay } from './arrange';
+import { arrange, formatDay, genresOf } from './arrange';
 
 const now = new Date('2026-11-23T12:00:00Z');
 const daysAgo = (n: number) => new Date(now.getTime() - n * 86_400_000).toISOString();
@@ -55,5 +55,30 @@ describe('formatDay', () => {
     expect(formatDay('2026-11-21T10:00:00Z')).toMatch(/2026/);
     expect(formatDay(null)).toBe('');
     expect(formatDay('not a date')).toBe('');
+  });
+});
+
+describe('genre', () => {
+  const tagged = [
+    { ...t(1, 'One', 'A', null), genre: 'Rap' },
+    { ...t(2, 'Two', 'B', null), genre: 'rap' },
+    { ...t(3, 'Three', 'C', null), genre: 'Jazz' },
+    t(4, 'Four', 'D', null),
+  ];
+
+  it('keeps only the songs of the chosen genre, ignoring case', () => {
+    expect(titles(arrange(tagged, { query: '', sort: 'default', since: 'any', genre: 'Rap', now }))).toEqual(['One', 'Two']);
+  });
+
+  it('shows everything when no genre is chosen', () => {
+    expect(arrange(tagged, { query: '', sort: 'default', since: 'any', genre: '', now }).length).toBe(4);
+  });
+
+  it('searches the genre too', () => {
+    expect(titles(arrange(tagged, { query: 'jazz', sort: 'default', since: 'any', now }))).toEqual(['Three']);
+  });
+
+  it('lists each genre once, sorted, without empty ones', () => {
+    expect(genresOf(tagged)).toEqual(['Jazz', 'Rap']);
   });
 });

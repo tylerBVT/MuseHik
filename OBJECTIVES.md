@@ -180,10 +180,9 @@ the voice (falls to silence when he stops). **Not yet judged by ear.**
 ## Cloud (built 2026-11-21)
 Design: `docs/superpowers/specs/2026-11-21-cloud-design.md`. Module: `backend/modules/cloud/`, pages in `frontend/src/app/features/cloud/`.
 - FTP only (no HTTP, nothing installed on LWS). The `music` folder sits at the hosting root, outside every website.
-  Cloud layout: `music/library.json` (index), `music/usage.json` (traffic per month, shared by both laptops), `music/songs/`.
-- Limits: 30 GB stored, warning at 80 %, stop at 100 %. Traffic is counted and shown, not limited (2026-11-23: her plan
-  has no traffic limit; the 10 GB/month cap was removed).
-  Counted by the app (uploads, song fetches, the small JSON files), not by LWS.
+  Cloud layout: `music/library.json` (index), `music/playlists.json`, `music/songs/`.
+- Limits: 30 GB stored, warning at 80 %, stop at 100 %. Traffic is not counted any more (2026-11-23: her plan has no
+  traffic limit; the 10 GB/month cap and then the counter were removed; an old `music/usage.json` is just ignored).
 - Each laptop: settings in `backend/data/cloud.json`, cache of played songs in `MuseHikData/cloudCache` (2 GB, least recently played removed first).
   A cloud song that is also in the local library plays from the local file (free). The next song is fetched at half time.
 - Advice: give MuseHik its own LWS FTP account restricted to `/music`, not the main hosting login.
@@ -206,6 +205,26 @@ Design: `docs/superpowers/specs/2026-11-23-cloud-extras-design.md`.
 - Library and Cloud lists: sort (title, artist, newest, oldest) and filter (7 days, 30 days, 12 months); each row shows
   its date (library: when the file appeared on this laptop; cloud: when it was uploaded).
 - Downloader: "Also send to the cloud" uploads the download's songs when it ends (waits if an upload is running).
+  Replaced on 2026-11-23 by the "Download to cloud" page (below).
+
+### Cloud, live (built 2026-11-23)
+Design: `docs/superpowers/specs/2026-11-23-cloud-live-design.md`. Plan: `docs/superpowers/plans/2026-11-23-cloud-live.md`.
+- **Two connections at most**, each with one job (FTP does one thing at a time per connection):
+  *listen* (playing, lists, playlists, edits; kept open, closed after 15 min idle) and *transfer* (uploads, saving to
+  this laptop; opened when needed, closed after 2 min idle). A keep-alive every minute; a silent connection is checked
+  before use and reopened if the server dropped it.
+- **Plays while it downloads**: a cloud song starts as soon as its first bytes arrive (like Deezer), and the download
+  becomes the cached copy.
+- **Online / Offline** per laptop (Settings > Cloud > "Use the cloud on this laptop"). Offline never connects: the
+  Cloud page shows the last list it saw, songs already on this laptop still play, cloud tiles say "Offline".
+- **⋮ menu on every song** (library and cloud): rename (title, artist: the file is renamed too, playlists follow),
+  genre (written in the MP3, a Genre filter on the lists), delete (library: Recycle Bin; cloud: gone for good, two
+  clicks), Send to cloud / Save to this laptop.
+- **Download to cloud** (home tile): downloads from a link, uploads, then deletes the new files from this laptop.
+  Songs the cloud already has are skipped; songs already in the library are sent and stay.
+- **Download from cloud** (home tile): tick cloud songs, they are copied into the music folder with the list's title,
+  artist and genre (from the cache when already played here; Stop leaves no half file).
+- [ ] Try it on her laptop against the real LWS hosting (play-while-downloading speed, idle drops).
 
 ## Legal note
 Downloading from YouTube may violate its terms of service, and copyrighted music should only be saved with permission. This is a personal-use experiment.

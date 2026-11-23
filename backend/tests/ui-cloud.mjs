@@ -51,7 +51,9 @@ try {
   await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
   const tiles = await q(`[...document.querySelectorAll('app-home .tile .name')].map(e => e.textContent.trim())`);
   const at = tiles.indexOf('Create playlist');
-  check('home has Cloud upload and Cloud right after Create playlist', tiles[at + 1] === 'Cloud upload' && tiles[at + 2] === 'Cloud', tiles.join(' | '));
+  check('home has Cloud upload, Cloud and Download from cloud right after Create playlist',
+    tiles[at + 1] === 'Cloud upload' && tiles[at + 2] === 'Cloud' && tiles[at + 3] === 'Download from cloud', tiles.join(' | '));
+  check('home has Download to cloud next to Download new tracks', tiles[tiles.indexOf('Download new tracks') + 1] === 'Download to cloud');
 
   // Not set up yet: the usage bar says so
   await click('app-home .tile', 'Cloud upload');
@@ -67,7 +69,8 @@ try {
   await typeInField('User', ftp.settings.user);
   await typeInField('Password', ftp.settings.password);
   await typeInField('Your name', 'Tyler');
-  await q(`document.querySelector('app-settings .check input').click()`);
+  check('Settings shows the cloud as Online by default', await q(`document.querySelector('app-settings .check.online input').checked`));
+  await q(`[...document.querySelectorAll('app-settings .check')].find(c => c.textContent.includes('unencrypted')).querySelector('input').click()`);
   await click('app-settings .action', 'Save and test');
   check('Save and test connects', await page.waitFor(`document.querySelector('app-settings [role=status]')?.textContent.includes('Connected')`),
     await q(`document.querySelector('app-settings [role=status]')?.textContent.trim()`));
@@ -78,7 +81,8 @@ try {
   await q(`history.back()`);
   await page.waitFor(`document.querySelector('app-home')`);
   await click('app-home .tile', 'Cloud upload');
-  check('usage bar shows storage and this month', await page.waitFor(`document.querySelector('app-cloud-usage')?.textContent.includes('Moved this month')`));
+  check('usage bar shows storage, no traffic counter', await page.waitFor(`document.querySelector('app-cloud-usage')?.textContent.includes('Stored:')`)
+    && !(await q(`document.querySelector('app-cloud-usage').textContent.includes('Moved this month')`)));
   await page.waitFor(`document.querySelectorAll('app-cloud-upload-page .song').length === 1`);
   await q(`document.querySelector('app-cloud-upload-page .song input').click()`);
   check('summary counts the ticked song', (await q(`document.querySelector('app-cloud-upload-page .send').textContent`)).includes('1 song,'));
@@ -143,20 +147,67 @@ try {
   check('each row shows its date', (await q(`document.querySelectorAll('app-cloud-page .row .day').length`)) === 3);
   await page.shot('cloud-7-sorted');
 
-  // The downloader offers "Also send to the cloud" now that the cloud is set up.
+  // The ⋮ menu on a cloud song: rename it and give it a genre.
+  await q(`[...document.querySelectorAll('app-cloud-page li')].find(li => li.textContent.includes('Hand Song')).querySelector('.more').click()`);
+  check('the ⋮ menu opens as a dialog', await page.waitFor(`document.querySelector('app-song-menu dialog')?.open === true`));
+  const setMenuField = (name, value) => q(`(() => { const i = document.querySelector('app-song-menu input[name=${name}]'); i.value = ${JSON.stringify(value)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await setMenuField('title', 'Hand Song Renamed');
+  await setMenuField('genre', 'Rap');
+  await page.shot('cloud-8-song-menu');
+  await q(`document.querySelector('app-song-menu button[type=submit]').click()`);
+  check('the renamed song shows in the list', await page.waitFor(`!document.querySelector('app-song-menu') && document.querySelector('app-cloud-page app-library-list').textContent.includes('Hand Song Renamed')`));
+  check('the cloud file was renamed too', readdirSync(join(ftp.root, 'music', 'songs')).includes('Hand Artist - Hand Song Renamed.mp3'),
+    readdirSync(join(ftp.root, 'music', 'songs')).join(', '));
+  check('a Genre menu appears with Rap', await page.waitFor(`[...document.querySelectorAll('app-cloud-page select[aria-label="Show genre"] option')].some(o => o.textContent.trim() === 'Rap')`));
+
+  // "Download to cloud": its own page, and no tick box on the normal downloader any more.
   await q(`location.href = ${JSON.stringify(APP)}`);
   await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
-  await q(`[...document.querySelectorAll('app-home .tile')].find(t => /download/i.test(t.textContent)).click()`);
-  check('the downloader shows "Also send to the cloud"', await page.waitFor(`document.querySelector('app-link-input .to-cloud')?.textContent.includes('Also send to the cloud')`));
-  await page.shot('cloud-8-downloader');
+  await click('app-home .tile', 'Download to cloud');
+  check('the Download to cloud page explains where the songs go', await page.waitFor(`[...document.querySelectorAll('app-download-page')].some(p => !p.hidden && p.textContent.includes('then are deleted from this laptop'))`));
+  check('its button says Download to cloud', (await q(`[...document.querySelectorAll('app-link-input button')].some(b => b.textContent.trim() === 'Download to cloud')`)));
+  await page.shot('cloud-9-download-to-cloud');
+  await q(`history.back()`);
+  await page.waitFor(`document.querySelector('app-home')`);
+  await click('app-home .tile', 'Download new tracks');
+  check('the normal downloader has no "Also send to the cloud" box', await page.waitFor(`!document.querySelector('app-download-page').hidden`)
+    && !(await q(`document.querySelector('app-download-page').textContent.includes('Also send to the cloud')`))
+    && !(await q(`document.querySelector('app-download-page').textContent.includes('then are deleted')`)));
+
+  // "Download from cloud": save the renamed song to this laptop.
+  await q(`location.href = ${JSON.stringify(APP)}`);
+  await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
+  const notHere = (await songs()).filter(x => !x.inLibrary).length;
+  await click('app-home .tile', 'Download from cloud');
+  check('the page lists the cloud songs not in the library', notHere >= 2 && await page.waitFor(`document.querySelectorAll('app-cloud-save-page .song input').length === ${notHere}`),
+    String(await q(`document.querySelectorAll('app-cloud-save-page .song input').length`)));
+  await q(`[...document.querySelectorAll('app-cloud-save-page .song')].find(l => l.textContent.includes('Hand Song Renamed')).querySelector('input').click()`);
+  await click('app-cloud-save-page .action.primary', 'Save 1');
+  check('saving finishes', await page.waitFor(`document.querySelector('app-cloud-save-page .progress')?.textContent.includes('1 saved')`, 30000),
+    await q(`document.querySelector('app-cloud-save-page .progress')?.textContent.replace(/\s+/g, ' ').trim()`));
+  check('the file is in the music folder', readdirSync(join(tmp, 'music')).includes('Hand Artist - Hand Song Renamed.mp3'), readdirSync(join(tmp, 'music')).join(', '));
+  check('it leaves the list (now in the library)', await page.waitFor(`document.querySelectorAll('app-cloud-save-page .song input').length === ${notHere - 1}`));
+  await page.shot('cloud-10-download-from-cloud');
+
+  // The ⋮ menu on a library song: a genre written into the file.
+  await q(`location.href = ${JSON.stringify(APP)}`);
+  await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
+  await click('app-home .tile', 'All tracks');
+  await page.waitFor(`document.querySelectorAll('app-tracks-page .more').length >= 2`);
+  await q(`[...document.querySelectorAll('app-tracks-page li')].find(li => li.textContent.includes('Hand Song Renamed')).querySelector('.more').click()`);
+  await page.waitFor(`document.querySelector('app-song-menu dialog')?.open === true`);
+  check('the menu shows the genre the cloud list had', (await q(`document.querySelector('app-song-menu input[name=genre]').value`)) === 'Rap');
+  await setMenuField('genre', 'Jazz');
+  await q(`document.querySelector('app-song-menu button[type=submit]').click()`);
+  check('the library song gets the new genre', await page.waitFor(`[...document.querySelectorAll('app-tracks-page select[aria-label="Show genre"] option')].some(o => o.textContent.trim() === 'Jazz')`));
 
   // Shared playlists: make one from a library song + a cloud-only song, share it.
   const cloudPlaylists = () => JSON.parse(readFileSync(join(ftp.root, 'music', 'playlists.json'), 'utf8')).playlists;
   await q(`location.href = ${JSON.stringify(APP)}`);
   await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
   await click('app-home .tile', 'Create playlist');
-  await page.waitFor(`document.querySelectorAll('app-playlist-editor .song').length >= 2`);
-  check('the editor lists cloud songs that are not on this laptop', (await q(`[...document.querySelectorAll('app-playlist-editor .tag')].map(t => t.textContent.trim())`)).includes('cloud'));
+  check('the editor lists cloud songs that are not on this laptop',
+    await page.waitFor(`[...document.querySelectorAll('app-playlist-editor .tag')].some(t => t.textContent.trim() === 'cloud')`));
   await q(`(() => { const i = document.querySelector('app-playlist-editor .name'); i.value = 'Road trip'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await q(`document.querySelectorAll('app-playlist-editor .song input').forEach(i => i.click())`);
   const ticked = await q(`document.querySelectorAll('app-playlist-editor .song input:checked').length`);
@@ -188,6 +239,23 @@ try {
   await q(`document.querySelector('app-playlist-page .row:not(.unavailable)').click()`);
   check("a song of Mum's playlist plays", await page.waitFor(`document.querySelector('app-player-bar')?.textContent.includes(${JSON.stringify(onCloud.title)})`));
   await page.shot('cloud-6-mums-playlist');
+
+  // Offline: switched off in Settings, this laptop says so and never connects.
+  await q(`location.href = ${JSON.stringify(APP)}`);
+  await page.waitFor(`document.querySelector('.gear')`);
+  await q(`document.querySelector('.gear').click()`);
+  await page.waitFor(`document.querySelector('app-settings .check.online input')`);
+  await q(`document.querySelector('app-settings .check.online input').click()`);
+  check('the switch saves Offline', await page.waitFor(`document.querySelector('app-settings [role=status]')?.textContent.includes('off for this laptop')`));
+  const loginsWhenOff = ftp.logins;
+  await q(`history.back()`);
+  await page.waitFor(`document.querySelector('app-home')`);
+  check('the Cloud tile says Offline', await page.waitFor(`[...document.querySelectorAll('app-home .tile')].some(t => t.textContent.includes('Cloud') && t.textContent.includes('Offline'))`));
+  await q(`[...document.querySelectorAll('app-home .tile')].find(t => t.querySelector('.name').textContent.trim() === 'Cloud').click()`);
+  check('the Cloud page shows the last list and says it is offline', await page.waitFor(`document.querySelector('app-cloud-page')?.textContent.includes('offline on this laptop')`)
+    && await page.waitFor(`document.querySelectorAll('app-cloud-page app-library-list .row').length >= 2`));
+  await page.shot('cloud-11-offline');
+  check('no connection was made while offline', ftp.logins === loginsWhenOff, `${ftp.logins - loginsWhenOff} new`);
 } catch (e) {
   failed++;
   console.log(`FAIL  ${e.message}`);

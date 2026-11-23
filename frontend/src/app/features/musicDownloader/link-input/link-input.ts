@@ -1,7 +1,7 @@
-import { Component, computed, inject, output, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { API } from '../../../core/api';
 import { NavService } from '../../../core/nav.service';
-import { CloudService } from '../../cloud/cloud.service';
+import { CloudService, cloudOnline } from '../../cloud/cloud.service';
 
 type Toast = { kind: 'info' | 'success' | 'error'; text: string };
 
@@ -46,13 +46,11 @@ export type Job = {
   detail?: string;
   startedAt?: string;
   finishedAt?: string;
-  /** "Also send to the cloud" was ticked. */
-  toCloud?: boolean;
-  /** Set when the download ended with "Also send to the cloud": how many songs went to the upload. */
+  /** Started from "Download to cloud". */
+  cloudOnly?: boolean;
+  /** Set when a "Download to cloud" ended: how many songs went to the upload. */
   cloud?: { songs: number; jobId?: string; queued?: boolean; error?: string };
 };
-
-const TO_CLOUD_KEY = 'musehik.download.toCloud';
 
 const POLL_MS = 1000;
 const STATUS_LABEL: Record<Job['status'], string> = {
@@ -65,20 +63,14 @@ export const badgeOf = (job: Job): { label: string; tone: string } =>
     ? { label: 'Incomplete', tone: 'cancelled' }
     : { label: STATUS_LABEL[job.status], tone: job.status };
 
-function readToCloud(): boolean {
-  try {
-    return localStorage.getItem(TO_CLOUD_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 @Component({
   selector: 'app-link-input',
   templateUrl: './link-input.html',
   styleUrl: './link-input.css',
 })
 export class LinkInput {
+  /** "Download to cloud": the songs go to the cloud and leave this laptop once they are there. */
+  readonly cloudOnly = input(false);
   protected readonly link = signal('');
   protected readonly downloading = signal(false);
   protected readonly toast = signal<Toast | null>(null);
@@ -95,37 +87,17 @@ export class LinkInput {
   protected readonly badge = badgeOf;
   protected readonly nav = inject(NavService);
   private readonly cloud = inject(CloudService);
-  /** The cloud is set up in Settings: the "Also send to the cloud" box is shown. */
-  protected readonly cloudReady = signal(false);
-  protected readonly toCloud = signal(readToCloud());
+  /** The cloud is set up and Online on this laptop ("Download to cloud" needs it). */
+  protected readonly cloudReady = computed(() => cloudOnline(this.cloud.settings()));
 
   constructor() {
     void this.loadHistory();
     void this.resumeRunning();
-    void this.checkCloud();
-  }
-
-  private async checkCloud(): Promise<void> {
-    try {
-      const s = await this.cloud.getSettings();
-      this.cloudReady.set(Boolean(s.host && s.user && s.hasPassword));
-    } catch {
-      this.cloudReady.set(false);
-    }
-  }
-
-  protected setToCloud(event: Event): void {
-    const on = (event.target as HTMLInputElement).checked;
-    this.toCloud.set(on);
-    try {
-      localStorage.setItem(TO_CLOUD_KEY, on ? '1' : '0');
-    } catch {
-      /* remembering the choice is a nicety */
-    }
+    this.cloud.getSettings().catch(() => {}); // later changes in Settings update cloud.settings()
   }
 
   protected readonly canDownload = computed(
-    () => this.link().trim().length > 0 && !this.downloading(),
+    () => this.link().trim().length > 0 && !this.downloading() && (!this.cloudOnly() || this.cloudReady()),
   );
   /** 0-100, or null while the playlist length is still unknown (shows a moving "busy" bar). */
   protected readonly percent = computed(() => {
@@ -159,7 +131,7 @@ export class LinkInput {
       const start = await fetch(`${API}/download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, toCloud: this.cloudReady() && this.toCloud() }),
+        body: JSON.stringify({ url, cloudOnly: this.cloudOnly() }),
       });
       const started = await start.json();
       if (!start.ok) throw new Error(started.error ?? `Server error ${start.status}`);

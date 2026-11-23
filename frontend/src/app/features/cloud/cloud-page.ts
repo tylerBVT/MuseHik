@@ -34,6 +34,15 @@ import { CloudUsage } from './usage-bar';
     .notice {
       color: var(--text-muted);
     }
+    .link {
+      padding: 0;
+      color: var(--accent);
+      font: inherit;
+      background: none;
+      border: none;
+      text-decoration: underline;
+      cursor: pointer;
+    }
     .error {
       color: var(--danger);
     }
@@ -79,7 +88,7 @@ import { CloudUsage } from './usage-bar';
   template: `
     <app-page-header title="Cloud">
       <button type="button" class="action" (click)="nav.go({ page: 'cloud-upload' })">Upload</button>
-      @if (songs().length) {
+      @if (songs().length && !switchedOff()) {
         <button type="button" class="action" (click)="toggleRemoving()">{{ removing() ? 'Done' : 'Remove songs' }}</button>
       }
     </app-page-header>
@@ -88,7 +97,12 @@ import { CloudUsage } from './usage-bar';
     @if (error(); as message) {
       <p class="error" role="alert">{{ message }}</p>
     }
-    @if (offline()) {
+    @if (switchedOff()) {
+      <p class="notice">
+        The cloud is offline on this laptop: this is the last list it saw. Songs already on this laptop still play.
+        <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Turn it on in Settings</button>
+      </p>
+    } @else if (offline()) {
       <p class="notice">The cloud cannot be reached right now. Showing the last known list: songs on this laptop still play.</p>
     }
 
@@ -119,6 +133,7 @@ import { CloudUsage } from './usage-bar';
         [tracks]="tracks()"
         [onLaptop]="onLaptop()"
         [sortable]="true"
+        (changed)="refresh()"
         emptyMessage="Nothing on the cloud yet. Press Upload to send songs."
       />
     } @else {
@@ -133,6 +148,8 @@ export class CloudPage implements OnInit {
   protected readonly songs = signal<CloudSong[]>([]);
   protected readonly loaded = signal(false);
   protected readonly offline = signal(false);
+  /** Switched to Offline in Settings (not a connection problem). */
+  protected readonly switchedOff = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly removing = signal(false);
   protected readonly picked = signal<ReadonlySet<number>>(new Set());
@@ -147,11 +164,18 @@ export class CloudPage implements OnInit {
     await this.load();
   }
 
+  /** After a change from a song's ⋮ menu. */
+  protected async refresh(): Promise<void> {
+    await this.load();
+    void this.cloud.loadStatus();
+  }
+
   private async load(): Promise<void> {
     try {
       const result = await this.cloud.songs();
       this.songs.set(result.songs);
       this.offline.set(result.offline);
+      this.switchedOff.set(result.mode === 'offline');
       this.error.set(null);
     } catch (e) {
       this.error.set((e as Error).message);

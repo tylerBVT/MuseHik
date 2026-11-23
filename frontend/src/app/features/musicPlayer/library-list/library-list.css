@@ -92,8 +92,41 @@ h2 {
   overflow: hidden;
 }
 
+.tracks li {
+  display: flex;
+  align-items: center;
+}
+
 .tracks li + li {
   border-top: 1px solid var(--hover);
+}
+
+.tracks li .row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The ⋮ button at the right of each song: opens its menu. */
+.more {
+  flex: none;
+  align-self: stretch;
+  width: 40px;
+  font: inherit;
+  font-size: 1.3rem;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--text-strong);
+  background: var(--surface-alt);
+}
+
+.more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .row {

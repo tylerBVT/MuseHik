@@ -1,15 +1,15 @@
-// The cloud's shared state, kept as two small JSON files in the cloud folder (no database needed):
-//   library.json  the index of every song uploaded by either laptop
-//   usage.json    traffic per month, added to by both laptops
+// The cloud's shared state, kept as small JSON files in the cloud folder (no database needed):
+//   library.json  the index of every song on the cloud (uploaded by either laptop, or added by hand)
+//   playlists.json  shared playlists (playlistSync.mjs)
 // Two laptops can write at the same time and FTP has no locks, so every change re-reads the file right before
 // writing it. The songs/ folder stays the truth: rebuildIndex() repairs the index from it.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { extname } from 'node:path';
-import { AUDIO_EXTS, trackKey } from '../../core/lib.mjs';
-import { GB, checkStorage, monthKey, usageSummary } from './limits.mjs';
-import { openSession } from './remote.mjs';
-import { isConfigured, loadSettings, localFile } from './settings.mjs';
+import { AUDIO_EXTS, fileBase, trackKey } from '../../core/lib.mjs';
+import { borrow } from './connections.mjs';
+import { GB, checkStorage, usageSummary } from './limits.mjs';
+import { OFFLINE_MESSAGE, isConfigured, loadSettings, localFile } from './settings.mjs';
 
 const EMPTY_INDEX = () => ({ version: 1, nextId: 1, songs: [] });
 export const songPath = song => `songs/${song.file}`;
@@ -20,15 +20,13 @@ export function lastIndex() {
 }
 
 /**
- * Runs `fn(cloud)` on one FTP session. When it ends (even by an error) the bytes it moved are added to this month's
- * traffic in usage.json, so both laptops count against the same budget.
+ * Runs `fn(cloud)` on one of the kept-open connections (connections.mjs): `lane` 'listen' (default) for playing,
+ * lists and small changes, 'transfer' for uploads and saving songs to this laptop.
  */
-export async function withCloud(fn, settings = loadSettings()) {
+export async function withCloud(fn, settings = loadSettings(), { lane = 'listen' } = {}) {
   if (!isConfigured(settings)) throw new Error('Cloud: not set up yet. Fill in the Cloud section in Settings.');
-  const session = await openSession(settings);
-  const startUsage = (await session.readJson('usage.json')) ?? { months: {} };
-  const month = monthKey();
-  const startBytes = startUsage.months?.[month]?.bytes ?? 0;
+  if (settings.online === false) throw new Error(`Cloud: ${OFFLINE_MESSAGE.replace(/^T/, 't')}`);
+  const { session, release } = await borrow(lane, settings);
 
   const keepCopy = index => {
     try { writeFileSync(localFile('cloud-library.json'), JSON.stringify(index)); } catch { /* the copy is a nicety */ }
@@ -36,14 +34,12 @@ export async function withCloud(fn, settings = loadSettings()) {
   };
   const readIndex = async () => keepCopy((await session.readJson('library.json')) ?? EMPTY_INDEX());
   const writeIndex = async index => { await session.writeJson('library.json', index); keepCopy(index); };
-  const usedBytes = () => startBytes + session.bytes;
 
   const cloud = {
     session,
     settings,
     index: readIndex,
     writeIndex,
-    usedBytes,
     async storedBytes() {
       return (await readIndex()).songs.reduce((sum, s) => sum + (s.size || 0), 0);
     },
@@ -77,6 +73,33 @@ export async function withCloud(fn, settings = loadSettings()) {
       await writeIndex(index);
       return song;
     },
+    /**
+     * The song menu's Save on a cloud song: new title, artist and/or genre in the shared list. When the title or the
+     * artist changes, the file on the cloud is renamed "Artist - Title" too (never over another file). Same id, so a
+     * copy cached under it stays valid. Returns the updated entry, or null for an unknown song.
+     */
+    async editSong(id, { title, artist, genre } = {}) {
+      const index = await readIndex();
+      const song = index.songs.find(s => s.id === id);
+      if (!song) return null;
+      const next = {
+        title: String(title ?? song.title).trim(),
+        artist: String(artist ?? song.artist ?? '').trim(),
+        genre: String(genre ?? song.genre ?? '').trim(),
+      };
+      if (!next.title) throw new EditError('A song needs a title.');
+      if (next.title.length > 200 || next.artist.length > 200 || next.genre.length > 60) throw new EditError('That is too long.');
+      let file = song.file;
+      if (next.title !== song.title || next.artist !== (song.artist || '')) {
+        const ext = extname(song.file);
+        const base = fileBase(next.artist, next.title);
+        const taken = new Set(index.songs.filter(s => s.id !== id).map(s => s.file.toLowerCase()));
+        file = `${base}${ext}`;
+        for (let n = 2; taken.has(file.toLowerCase()); n++) file = `${base} (${n})${ext}`;
+        if (file !== song.file) await session.rename(songPath(song), songPath({ file }));
+      }
+      return cloud.updateSong(id, { ...next, file, key: trackKey(next.artist, next.title) });
+    },
     async removeSong(id) {
       const index = await readIndex();
       const song = index.songs.find(s => s.id === id);
@@ -92,19 +115,12 @@ export async function withCloud(fn, settings = loadSettings()) {
   try {
     return await fn(cloud);
   } finally {
-    try {
-      const usage = (await session.readJson('usage.json')) ?? { months: {} };
-      usage.months ??= {};
-      const spent = session.bytes;
-      usage.months[month] = { bytes: (usage.months[month]?.bytes ?? 0) + spent };
-      await session.writeJson('usage.json', usage);
-    } catch (e) {
-      console.error('Could not record cloud traffic:', e.message);
-    } finally {
-      await session.close();
-    }
+    release();
   }
 }
+
+/** A refused edit (bad title...), as opposed to a connection problem. */
+export class EditError extends Error {}
 
 /** Who "added" a song found in songs/ that no laptop uploaded (put there with FileZilla or the hosting's panel). */
 export const BY_HAND = 'added by hand';
@@ -150,15 +166,14 @@ export function rebuildIndex(settings = loadSettings()) {
   return withCloud(syncFolder, settings);
 }
 
-/** What the usage bars show. Never throws: a connection problem comes back as `error`. */
+/** What the storage bar shows. Never throws: a connection problem comes back as `error`. */
 export async function cloudStatus(settings = loadSettings()) {
   if (!isConfigured(settings)) return { configured: false };
+  if (settings.online === false) return { configured: true, online: false };
   try {
-    return await withCloud(async cloud => {
-      const usage = await cloud.session.readJson('usage.json');
-      const summary = usageSummary({ usage, settings, storedBytes: await cloud.storedBytes() });
-      return { configured: true, ...summary, usedBytes: Math.max(summary.usedBytes, cloud.usedBytes()) };
-    }, settings);
+    return await withCloud(async cloud => ({
+      configured: true, online: true, ...usageSummary({ settings, storedBytes: await cloud.storedBytes() }),
+    }), settings);
   } catch (e) {
     return { configured: true, error: e.message };
   }

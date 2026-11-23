@@ -13,7 +13,6 @@ process.env.CLOUD_SETTINGS = join(tmp, 'cloud.json');
 process.env.CLOUD_CACHE_DIR = join(tmp, 'cache');
 const { server } = await import('../server.mjs');
 const { saveSettings } = await import('../modules/cloud/settings.mjs');
-const { monthKey } = await import('../modules/cloud/limits.mjs');
 
 let ftp, base;
 before(async () => {
@@ -84,17 +83,15 @@ test('upload then list then stream with Range 206', async () => {
   assert.equal(again.body.songs.find(s => s.id === song.id).onLaptop, true, 'cached after the first play');
 });
 
-test('stream still works after lots of traffic this month', async () => {
+test('a song added by hand streams in full', async () => {
   mkdirSync(join(ftp.root, 'music', 'songs'), { recursive: true });
   writeFileSync(join(ftp.root, 'music', 'songs', 'Far - Away.mp3'), Buffer.alloc(1000));
   await api('/rebuild', { method: 'POST' });
   const song = (await api('/songs')).body.songs.find(s => s.file === 'Far - Away.mp3');
-  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: { [monthKey()]: { bytes: 11e9 } } }));
   const response = await fetch(`${base}/songs/${song.id}/stream`);
   assert.equal(response.status, 200);
   assert.equal((await response.arrayBuffer()).byteLength, 1000);
-  assert.ok((await api('/status')).body.usedBytes >= 11e9, 'traffic is still counted');
-  writeFileSync(join(ftp.root, 'music', 'usage.json'), JSON.stringify({ months: {} }));
+  assert.equal('usedBytes' in (await api('/status')).body, false, 'traffic is not counted');
 });
 
 test('delete removes the song', async () => {
@@ -102,4 +99,21 @@ test('delete removes the song', async () => {
   assert.equal((await api(`/songs/${song.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await api('/songs')).body.songs.some(s => s.id === song.id), false);
   assert.equal((await api(`/songs/${song.id}`, { method: 'DELETE' })).status, 404);
+});
+
+test('upload with queue: true waits behind a running upload instead of refusing', async () => {
+  const big = join(tmp, 'Queue - Big.mp3');
+  const small = join(tmp, 'Queue - Small.mp3');
+  writeFileSync(big, Buffer.alloc(30_000_000, 1));
+  writeFileSync(small, Buffer.alloc(1000, 2));
+  const first = await api('/upload', { method: 'POST', body: { paths: [big] } });
+  const second = await api('/upload', { method: 'POST', body: { paths: [small], queue: true } });
+  assert.equal(second.status, 202);
+  assert.ok(second.body.queued || second.body.jobId, JSON.stringify(second.body));
+  await waitUpload(first.body.jobId);
+  for (let i = 0; i < 200; i++) {
+    if ((await api('/songs')).body.songs.some(s => s.file === 'Queue - Small.mp3')) return;
+    await new Promise(r => setTimeout(r, 50));
+  }
+  assert.fail('the queued song never reached the cloud');
 });

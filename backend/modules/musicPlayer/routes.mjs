@@ -1,10 +1,13 @@
 // Player API: the library list, audio streaming (with seeking), cover art, and playlists.
-//   GET /api/library, POST /api/library/rescan, GET /api/library/:id/stream, GET /api/library/:id/cover
+//   GET /api/library, POST /api/library/rescan, GET /api/library/:id/stream, GET /api/library/:id/cover,
+//   PATCH /api/library/:id {title?, artist?, genre?} (song menu: tags + file name), DELETE /api/library/:id (Recycle Bin)
 //   GET/POST /api/playlists, GET/PUT/DELETE /api/playlists/:id
 import { existsSync } from 'node:fs';
 import { readJson, streamFile } from '../../core/http.mjs';
-import { coverOf, getTrack, listTracks, scanLibrary } from '../../core/library.mjs';
-import { createPlaylist, deletePlaylist, getPlaylist, listPlaylists, updatePlaylist } from './playlists.mjs';
+import { coverOf, deleteTrack, editTrack, getTrack, listTracks, scanLibrary } from '../../core/library.mjs';
+import {
+  createPlaylist, deletePlaylist, getPlaylist, listPlaylists, renameSongEverywhere, updatePlaylist,
+} from './playlists.mjs';
 
 /** Handles the request if it belongs to this module; returns true when it did. */
 export async function handle(req, { res, json, cors }) {
@@ -31,6 +34,25 @@ export async function handle(req, { res, json, cors }) {
   // Library: list, rescan, stream, cover.
   if (req.method === 'GET' && req.url === '/api/library') { json(200, listTracks()); return true; }
   if (req.method === 'POST' && req.url === '/api/library/rescan') { json(200, await scanLibrary()); return true; }
+  const editMatch = (req.method === 'PATCH' || req.method === 'DELETE') && req.url.match(/^\/api\/library\/(\d+)$/);
+  if (editMatch) {
+    const id = Number(editMatch[1]);
+    if (req.method === 'DELETE') {
+      if (await deleteTrack(id)) json(200, { deleted: id });
+      else json(404, { error: 'This song is not in the library.' });
+      return true;
+    }
+    const before = getTrack(id);
+    try {
+      const updated = await editTrack(id, await readJson(req, 5000));
+      if (!updated) { json(404, { error: 'This song is not in the library.' }); return true; }
+      renameSongEverywhere(before, updated);
+      json(200, updated);
+    } catch (e) {
+      json(400, { error: e.message });
+    }
+    return true;
+  }
   const trackMatch = req.method === 'GET' && req.url.match(/^\/api\/library\/(\d+)\/(stream|cover)(?:\?.*)?$/);
   if (trackMatch) {
     const track = getTrack(Number(trackMatch[1]));

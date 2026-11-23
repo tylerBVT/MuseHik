@@ -13,6 +13,8 @@ export type Track = {
   duration: number;
   /** File size in bytes (library songs). */
   size?: number;
+  /** From the song menu (the file's genre tag, or the cloud list's). */
+  genre?: string;
   /** Cloud songs only: where to stream, show the cover and fetch in advance (library songs use their id). */
   stream?: string;
   cover?: string;
@@ -31,6 +33,7 @@ export function cloudTrack(song: {
   album: string;
   duration: number;
   addedAt?: string;
+  genre?: string;
 }): Track {
   const base = `${API}/cloud/songs/${song.id}`;
   return {
@@ -40,6 +43,7 @@ export function cloudTrack(song: {
     album: song.album,
     duration: song.duration,
     addedAt: song.addedAt ?? null,
+    genre: song.genre ?? '',
     stream: `${base}/stream`,
     cover: `${base}/cover`,
     prefetch: `${base}/prefetch`,

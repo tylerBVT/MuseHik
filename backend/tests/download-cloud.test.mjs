@@ -1,4 +1,4 @@
-// "Also send to the cloud" in the downloader.
+// "Download to cloud": the downloader sends its songs to the cloud and deletes its new files once they are there.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync } from 'node:fs';
@@ -20,19 +20,22 @@ before(async () => {
 });
 after(() => server.close());
 
-test('the songs sent are the new files plus the ones already in the library', () => {
+test('the songs sent are the new files plus the ones already in the library; only new files are removed', () => {
   const job = {
     files: ['C:/music/A - New.mp3', 'C:/music/B - New.mp3'],
     skippedList: [{ match: { id: 7 } }, { match: null }, {}, { match: { id: 9 } }],
   };
-  assert.deepEqual(cloudSelection(job), { paths: ['C:/music/A - New.mp3', 'C:/music/B - New.mp3'], trackIds: [7, 9] });
-  assert.deepEqual(cloudSelection({ files: [], skippedList: [] }), { paths: [], trackIds: [] });
+  assert.deepEqual(cloudSelection(job), {
+    paths: ['C:/music/A - New.mp3', 'C:/music/B - New.mp3'], trackIds: [7, 9],
+    removeAfter: ['C:/music/A - New.mp3', 'C:/music/B - New.mp3'],
+  });
+  assert.deepEqual(cloudSelection({ files: [], skippedList: [] }), { paths: [], trackIds: [], removeAfter: [] });
 });
 
-test('sending to the cloud before it is set up is refused with a reason', async () => {
+test('downloading to the cloud before it is set up is refused with a reason', async () => {
   const response = await fetch(`${base}/download`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: 'https://example.com/not-a-music-link', toCloud: true }), // never downloads anything
+    body: JSON.stringify({ url: 'https://example.com/not-a-music-link', cloudOnly: true }), // never downloads anything
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /Set up the cloud in Settings first/);

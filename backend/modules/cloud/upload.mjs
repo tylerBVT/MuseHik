@@ -1,14 +1,15 @@
 // Upload jobs: songs from the library (by id) or from any folder (by path) -> the cloud's songs/ folder.
-// One job at a time, songs one by one on one FTP session. Each song: skip it if the cloud already has it, check
+// One job at a time, songs one by one on the transfer connection (playing never waits behind an upload). Each song: skip it if the cloud already has it, check
 // both budgets, upload as "<name>.part.mp3", rename when complete (so the other laptop never sees half a song),
-// then add it to the shared index.
+// then add it to the shared index. Files listed in `removeAfter` ("Download to cloud") are deleted from this laptop
+// once the cloud has them (uploaded, or already there); a file that failed stays.
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, rm, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileBase, sameIdentity } from '../../core/lib.mjs';
-import { AUDIO_EXTS, getTrack, readTags } from '../../core/library.mjs';
+import { AUDIO_EXTS, forgetFile, getTrack, readTags } from '../../core/library.mjs';
 import { LimitError } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
 import { songPath, syncFolder, withCloud } from './store.mjs';
@@ -38,7 +39,8 @@ function freeFile(index, song) {
   return name;
 }
 
-async function songsFor({ trackIds = [], paths = [] }) {
+async function songsFor({ trackIds = [], paths = [], removeAfter = [] }) {
+  const removable = new Set(removeAfter);
   const songs = [];
   for (const id of trackIds) {
     const t = getTrack(Number(id));
@@ -46,7 +48,10 @@ async function songsFor({ trackIds = [], paths = [] }) {
   }
   for (const path of paths) {
     const tags = await readTags(path);
-    songs.push({ path, title: tags.title, artist: tags.artist, album: tags.album, duration: tags.duration, isrc: tags.isrc, size: tags.size });
+    songs.push({
+      path, title: tags.title, artist: tags.artist, album: tags.album, duration: tags.duration, isrc: tags.isrc,
+      size: tags.size, remove: removable.has(path),
+    });
   }
   return songs;
 }
@@ -56,7 +61,7 @@ export function startUpload(selection, settings = loadSettings()) {
   if (activeUpload()) throw new Error('An upload is already running. Wait for it or press Stop.');
   const job = {
     id: randomUUID(), state: 'running', total: 0, done: 0, bytesDone: 0, bytesTotal: 0, current: 'Connecting...',
-    uploaded: [], skipped: [], failed: [], error: null,
+    uploaded: [], skipped: [], failed: [], removed: 0, error: null,
   };
   const controller = new AbortController();
   jobs.set(job.id, job);
@@ -80,6 +85,7 @@ function startWaiting() {
   const selection = {
     trackIds: batch.flatMap(w => w.selection.trackIds ?? []),
     paths: batch.flatMap(w => w.selection.paths ?? []),
+    removeAfter: batch.flatMap(w => w.selection.removeAfter ?? []),
   };
   try {
     startUpload(selection, batch.at(-1).settings);
@@ -95,6 +101,20 @@ export function queueUpload(selection, settings = loadSettings()) {
   return { queued: true };
 }
 
+/** The cloud has this song now: delete the laptop copy if it was only downloaded to go there. */
+async function dropLocal(song, job) {
+  if (!song.remove) return;
+  try {
+    await rm(song.path, { force: true });
+    forgetFile(song.path);
+    job.removed++;
+  } catch (e) {
+    console.error(`Could not delete "${song.path}" after uploading it:`, e.message);
+  }
+}
+/** Why a song failed, saying its file was kept when it was meant to leave the laptop. */
+const failReason = (song, reason) => (song.remove ? `${reason} (kept on this laptop)` : reason);
+
 async function run(job, selection, settings, signal) {
   const songs = await songsFor(selection);
   job.total = songs.length;
@@ -109,6 +129,7 @@ async function run(job, selection, settings, signal) {
       const twin = onCloud(index, song);
       if (twin) {
         job.skipped.push(item(song, { reason: `Already on the cloud as "${label(twin)}"` }));
+        await dropLocal(song, job);
         job.done++;
         continue;
       }
@@ -117,7 +138,7 @@ async function run(job, selection, settings, signal) {
       } catch (e) {
         if (!(e instanceof LimitError)) throw e;
         // Every song left would hit the same wall: report them all and stop.
-        for (const rest of songs.slice(i)) job.failed.push(item(rest, { reason: e.message }));
+        for (const rest of songs.slice(i)) job.failed.push(item(rest, { reason: failReason(rest, e.message) }));
         job.done = job.total;
         break;
       }
@@ -131,17 +152,18 @@ async function run(job, selection, settings, signal) {
         index.songs.push(await cloud.addSong({ ...song, file }));
         job.bytesDone = start + song.size;
         job.uploaded.push(item(song, { file }));
+        await dropLocal(song, job);
       } catch (e) {
         if (signal.aborted) {
           await cloud.session.remove(part).catch(() => {}); // no half song left on the cloud
           job.bytesDone = start;
           break;
         }
-        job.failed.push(item(song, { reason: e.message.replace(/^Cloud: /, '') }));
+        job.failed.push(item(song, { reason: failReason(song, e.message.replace(/^Cloud: /, '')) }));
       }
       job.done++;
     }
-  }, settings);
+  }, settings, { lane: 'transfer' });
   job.state = signal.aborted ? 'stopped' : 'done';
 }
 
