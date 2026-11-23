@@ -12,6 +12,7 @@ import { PageHeader } from '../../../shared/page-header';
     <app-library-list
       heading="Songs"
       [tracks]="library.tracks()"
+      [sortable]="true"
       emptyMessage="Your library is empty. Use “Download new tracks” on the main page to add music."
     />
   `,

@@ -3,22 +3,36 @@
     <h2>
       {{ heading() }}
       <span class="count">
-        @if (query()) {
+        @if (visible().length !== tracks().length) {
           {{ visible().length }} of {{ tracks().length }} songs
         } @else {
           {{ tracks().length }} songs
         }
       </span>
     </h2>
-    <input
-      type="search"
-      class="search"
-      placeholder="Search title, artist or album"
-      aria-label="Search the library"
-      autocomplete="off"
-      [value]="query()"
-      (input)="onSearch($event)"
-    />
+    <div class="tools">
+      <input
+        type="search"
+        class="search"
+        placeholder="Search title, artist or album"
+        aria-label="Search the library"
+        autocomplete="off"
+        [value]="query()"
+        (input)="onSearch($event)"
+      />
+      @if (sortable()) {
+        <select class="menu" aria-label="Sort the songs" [value]="sort()" (change)="onSort($event)">
+          @for (option of sorts; track option.value) {
+            <option [value]="option.value" [selected]="option.value === sort()">{{ option.label }}</option>
+          }
+        </select>
+        <select class="menu" aria-label="Show songs added" [value]="since()" (change)="onSince($event)">
+          @for (option of periods; track option.value) {
+            <option [value]="option.value" [selected]="option.value === since()">{{ option.label }}</option>
+          }
+        </select>
+      }
+    </div>
   </header>
 
   @if (library.error(); as message) {
@@ -28,7 +42,11 @@
   } @else if (!tracks().length) {
     <p class="notice">{{ emptyMessage() }}</p>
   } @else if (!visible().length) {
-    <p class="notice">No song matches "{{ query() }}".</p>
+    @if (query()) {
+      <p class="notice">No song matches "{{ query() }}".</p>
+    } @else {
+      <p class="notice">No song added in this period.</p>
+    }
   }
 
   <ul class="tracks">
@@ -64,6 +82,9 @@
             <span class="title">{{ track.title }}</span>
             <span class="artist">
               {{ track.artist || 'Unknown artist' }}
+              @if (formatDay(track.addedAt); as day) {
+                <span class="day" [title]="track.stream ? 'Added to the cloud' : 'Downloaded'"> · {{ day }}</span>
+              }
               @if (onLaptop()?.has(track.id)) {
                 <span class="badge">on this laptop</span>
               }

@@ -118,6 +118,7 @@ import { CloudUsage } from './usage-bar';
         heading="Cloud songs"
         [tracks]="tracks()"
         [onLaptop]="onLaptop()"
+        [sortable]="true"
         emptyMessage="Nothing on the cloud yet. Press Upload to send songs."
       />
     } @else {
