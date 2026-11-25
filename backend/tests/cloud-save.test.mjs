@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseFile } from 'music-metadata';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 import { makeMp3 } from './mp3-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-save-'));
@@ -20,12 +20,12 @@ const { saveSettings } = await import('../modules/cloud/settings.mjs');
 const { fetchSong } = await import('../modules/cloud/cache.mjs');
 const { listTracks } = await import('../core/library.mjs');
 
-let ftp, base;
-const songsDir = () => join(ftp.root, 'music', 'songs');
+let remote, base;
+const songsDir = () => join(remote.root, 'music', 'songs');
 before(async () => {
-  ftp = await startFtp({ slow: { pattern: /Slow/, chunk: 20_000, delayMs: 50 } });
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp });
+  remote = await startCloud({ slow: { pattern: /Slow/, chunk: 20_000, delayMs: 50 } });
+  
+  saveSettings({ ...remote.settings });
   mkdirSync(songsDir(), { recursive: true });
   writeFileSync(join(songsDir(), 'Mum - Song.mp3'), makeMp3({ title: 'Wrong tag', artist: 'Wrong' }));
   writeFileSync(join(songsDir(), 'Mum - Cached.mp3'), makeMp3({ title: 'Cached', artist: 'Mum' }));
@@ -33,7 +33,7 @@ before(async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/cloud`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const api = async (path, init = {}) => {
   const response = await fetch(`${base}${path}`, {
@@ -51,7 +51,7 @@ async function finished(jobId) {
   }
   throw new Error('the save did not finish');
 }
-const songReads = () => ftp.reads.filter(name => /\.mp3$/i.test(name)).length;
+const songReads = () => remote.reads.filter(name => /\.mp3$/i.test(name)).length;
 
 test('a cloud song lands in the music folder and the library, with the list\'s title, artist and genre', async () => {
   const song = await songNamed('Mum - Song.mp3');

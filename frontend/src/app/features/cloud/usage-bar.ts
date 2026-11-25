@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject } from '@angular/core';
 import { NavService } from '../../core/nav.service';
+import { deviceName } from '../../core/platform';
 import { CloudService, formatSize } from './cloud.service';
 
 /** Cloud storage used as a bar (30 GB by default). Traffic is not counted: the hosting has no traffic limit. */
@@ -67,7 +68,7 @@ import { CloudService, formatSize } from './cloud.service';
         <span class="muted">The cloud is not set up yet. </span>
         <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Open Settings</button>
       } @else if (s.online === false) {
-        <span class="muted">The cloud is offline on this laptop. Songs already on it still play. </span>
+        <span class="muted">The cloud is offline on this {{ device }}. Songs already on it still play. </span>
         <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Turn it on in Settings</button>
       } @else if (s.error) {
         <span class="message" role="alert">{{ s.error }}</span>
@@ -102,6 +103,7 @@ export class CloudUsage implements OnInit {
   private readonly cloud = inject(CloudService);
   protected readonly status = computed(() => this.cloud.status());
   protected readonly size = formatSize;
+  protected readonly device = deviceName;
 
   ngOnInit(): void {
     void this.cloud.loadStatus();

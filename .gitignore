@@ -29,3 +29,6 @@ backend/data/
 desktop/stage/
 desktop/dist/
 desktop/server.log
+
+# Music API: the real config (key, paths) stays out of git
+music-api/config.php

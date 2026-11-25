@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { AppSettingsService } from '../core/app-settings.service';
 import { LibraryService } from '../core/library.service';
 import { NavService } from '../core/nav.service';
+import { hasServer } from '../core/platform';
 import { CloudService, cloudOnline } from '../features/cloud/cloud.service';
 import { PlaylistService, PlaylistSummary } from '../features/musicPlayer/playlist.service';
 
@@ -23,6 +24,9 @@ export class Home {
   /** Set up but switched to Offline on this laptop: the cloud tiles say so. */
   protected readonly cloudOff = signal(false);
 
+  /** False on the phone: the tiles that need the laptop's tools (downloader, separator) are hidden. */
+  protected readonly hasServer = hasServer;
+
   constructor() {
     // Picks up playlists shared from the other laptop (the server skips it if it synced in the last 30 s).
     void this.playlistService.sync();
@@ -30,7 +34,7 @@ export class Home {
       .getSettings()
       .then((s) => {
         this.myName.set(s.displayName);
-        this.cloudOff.set(Boolean(s.host && s.user && s.hasPassword) && !cloudOnline(s));
+        this.cloudOff.set(Boolean(s.url && s.hasKey) && !cloudOnline(s));
       })
       .catch(() => {});
   }

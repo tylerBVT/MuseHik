@@ -1,6 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { LibraryService } from './core/library.service';
-import { NavService } from './core/nav.service';
+import { NavService, View } from './core/nav.service';
 import { PlaylistService } from './features/musicPlayer/playlist.service';
 import { ThemeService } from './core/theme.service';
 import { Home } from './home/home';
@@ -16,6 +16,8 @@ import { CloudUploadPage } from './features/cloud/cloud-upload-page';
 import { CloudSavePage } from './features/cloud/cloud-save-page';
 import { UpdateBanner } from './shared/update-banner';
 import { AppSettingsService } from './core/app-settings.service';
+import { hasServer } from './core/platform';
+import { handleBackButton } from './core/back-button';
 
 @Component({
   imports: [Home, TracksPage, DownloadPage, SeparatorPage, PlaylistPage, PlaylistEditor, Settings, PlayerBar, CloudPage, CloudUploadPage, CloudSavePage, UpdateBanner],
@@ -30,6 +32,10 @@ export class App {
   /** MuttMutt does not see the AI tools. */
   protected readonly app = inject(AppSettingsService);
 
+  /** False on the phone: the pages that need the laptop's tools (downloader, separator) are never shown there. */
+  protected readonly hasServer = hasServer;
+  protected readonly serverOnly = new Set<View['page']>(['download', 'download-cloud', 'separate']);
+
   protected readonly page = computed(() => this.nav.view().page);
   /** The playlist being shown or edited, when the current page is about one. */
   protected readonly playlistId = computed(() => {
@@ -40,5 +46,6 @@ export class App {
   constructor() {
     void inject(LibraryService).load();
     void inject(PlaylistService).load();
+    void handleBackButton(this.nav);
   }
 }

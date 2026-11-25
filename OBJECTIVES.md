@@ -45,7 +45,8 @@ Source of truth: the whiteboard **"Studio Rap FR — carte des services"**: http
 - **Licences and business**: leases, rights, monetisation. Much later.
 
 ## Decisions so far
-- Stack direction: Angular + Tauri 2 (Windows + Android). Windows only on desktop.
+- Stack direction (updated 2026-11-24): one Angular app, packaged twice: Electron for Windows (`desktop/`),
+  Capacitor for Android (`frontend/android/`). Server-only features are switched off on the phone (`frontend/src/app/core/platform.ts`).
 - The music **player** (see README) and the **downloader** (link -> audio file) are two sides of the project.
 - Downloader is a Windows/PC-side feature (needs yt-dlp + ffmpeg, which can't realistically run on Android).
 - Downloaded audio must end up in `downloadedMusic/`.
@@ -179,7 +180,9 @@ the voice (falls to silence when he stops). **Not yet judged by ear.**
 
 ## Cloud (built 2026-11-21)
 Design: `docs/superpowers/specs/2026-11-21-cloud-design.md`. Module: `backend/modules/cloud/`, pages in `frontend/src/app/features/cloud/`.
-- FTP only (no HTTP, nothing installed on LWS). The `music` folder sits at the hosting root, outside every website.
+- 2026-11-24: the laptops use the PHP music API (`music-api/`, HTTPS + key) instead of FTP, like the phone; the
+  server decides duplicates, storage and playlist conflicts under its lock. Design: `docs/superpowers/specs/2026-11-24-cloud-over-api-design.md`.
+  (Until then: FTP only. The `music` folder sits in the hosting's web root, so `music/.htaccess` denies web access.)
   Cloud layout: `music/library.json` (index), `music/playlists.json`, `music/songs/`.
 - Limits: 30 GB stored, warning at 80 %, stop at 100 %. Traffic is not counted any more (2026-11-23: her plan has no
   traffic limit; the 10 GB/month cap and then the counter were removed; an old `music/usage.json` is just ignored).

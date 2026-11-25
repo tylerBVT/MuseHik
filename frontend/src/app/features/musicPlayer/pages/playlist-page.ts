@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { NavService } from '../../../core/nav.service';
+import { isPhone } from '../../../core/platform';
 import { CloudService, cloudOnline } from '../../cloud/cloud.service';
 import { Playlist, PlaylistService, toTracks } from '../playlist.service';
 import { LibraryList } from '../library-list/library-list';
@@ -73,6 +74,8 @@ import { PageHeader } from '../../../shared/page-header';
   template: `
     <app-page-header [title]="playlist()?.name ?? 'Playlist'">
       @if (playlist(); as current) {
+        <!-- On the phone every playlist is on the cloud: there is nothing to switch. -->
+        @if (!isPhone) {
         <button
           type="button"
           class="action share"
@@ -84,6 +87,7 @@ import { PageHeader } from '../../../shared/page-header';
         >
           <span class="switch" aria-hidden="true"></span> Shared
         </button>
+        }
         <button type="button" class="action" (click)="nav.go({ page: 'edit', id: id() })">Edit</button>
         <button type="button" class="action danger" (click)="remove()">Delete</button>
       }
@@ -95,6 +99,8 @@ import { PageHeader } from '../../../shared/page-header';
         <p class="status">
           @if (fromOther()) {
             Shared by {{ current.owner }}.
+          } @else if (isPhone) {
+            On the cloud: it shows on the laptops too.
           } @else {
             Shared: it is on the cloud and shows on the other laptop.
           }
@@ -123,6 +129,7 @@ export class PlaylistPage implements OnInit {
   protected readonly message = signal<{ text: string; error: boolean } | null>(null);
   private readonly myName = signal<string | null>(null);
   /** Sharing needs the cloud set up and Online on this laptop (unsharing always works). */
+  protected readonly isPhone = isPhone;
   protected readonly canShare = computed(() => cloudOnline(this.cloud.settings()));
 
   protected readonly tracks = computed(() => toTracks(this.playlist()?.songs ?? []));
@@ -169,8 +176,11 @@ export class PlaylistPage implements OnInit {
 
   protected async remove(): Promise<void> {
     const current = this.playlist();
-    const note = current?.shared ? ' It is shared, so it also disappears from the other laptop.' : '';
-    if (!current || !confirm(`Delete the playlist "${current.name}"? Your songs stay in the library.${note}`)) return;
+    const note = isPhone
+      ? ' It is on the cloud, so it also disappears from the laptops.'
+      : current?.shared ? ' It is shared, so it also disappears from the other laptop.' : '';
+    const songs = isPhone ? 'Your songs stay on the cloud.' : 'Your songs stay in the library.';
+    if (!current || !confirm(`Delete the playlist "${current.name}"? ${songs}${note}`)) return;
     await this.playlists.remove(current.id);
     this.nav.go({ page: 'home' }, { replace: true });
   }

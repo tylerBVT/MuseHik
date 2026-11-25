@@ -1,5 +1,5 @@
-// Cloud connection settings, stored on this laptop only (backend/data/cloud.json, git-ignored).
-// The password never leaves this file: the API sends `hasPassword` instead.
+// Cloud settings, stored on this laptop only (backend/data/cloud.json, git-ignored): the music API's address and key.
+// The key never leaves this file: the page gets `hasKey` instead.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dataDir } from '../../core/config.mjs';
@@ -10,55 +10,62 @@ const file = () => process.env.CLOUD_SETTINGS || join(dataDir, 'cloud.json');
 export const localFile = name => join(dirname(file()), name);
 
 export const DEFAULTS = Object.freeze({
-  host: '', port: 21, user: '', password: '', folder: 'music', name: '',
-  storageLimitGB: 30, cacheLimitGB: 2, allowPlainFtp: false,
+  url: '', key: '', name: '', cacheLimitGB: 2,
   // Offline: this laptop never connects to the cloud (songs already on it still play).
   online: true,
 });
 
 export function loadSettings() {
+  let saved;
   try {
-    // monthlyLimitGB: an old setting (the hosting has no traffic limit), dropped from files saved before.
-    const { monthlyLimitGB, ...saved } = JSON.parse(readFileSync(file(), 'utf8'));
-    return { ...DEFAULTS, ...saved };
+    saved = JSON.parse(readFileSync(file(), 'utf8'));
   } catch (e) {
     if (e.code === 'ENOENT') return { ...DEFAULTS };
     throw new Error(`The cloud settings file is damaged (${file()}): ${e.message}`);
   }
+  // Only the known fields: a file saved by the FTP version (host, password...) loses the rest.
+  const settings = { ...DEFAULTS };
+  for (const key of Object.keys(DEFAULTS)) if (saved[key] !== undefined) settings[key] = saved[key];
+  return settings;
 }
 
-const positive = (value, name) => {
-  const n = Number(value);
-  if (!(n > 0)) throw new Error(`${name} must be a number above 0.`);
-  return n;
-};
+/** "www.site.com/music-api/" → "https://www.site.com/music-api". Throws when it cannot be an address. */
+export function cleanUrl(value) {
+  let url = String(value ?? '').trim();
+  if (!url) return '';
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) url = `https://${url}`;
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  if (!parsed || !/^https?:$/.test(parsed.protocol) || !parsed.hostname) {
+    throw new Error('The cloud address must look like https://www.example.com/music-api.');
+  }
+  return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+}
 
-/** Merges `patch` into the saved settings. An empty or missing password keeps the saved one. */
+/** Merges `patch` into the saved settings. An empty or missing key keeps the saved one. */
 export function saveSettings(patch) {
-  const current = loadSettings();
-  const next = { ...current };
-  for (const key of ['host', 'user', 'folder', 'name']) if (patch[key] !== undefined) next[key] = String(patch[key]).trim();
+  const next = loadSettings();
+  if (patch.url !== undefined) next.url = cleanUrl(patch.url);
+  if (patch.name !== undefined) next.name = String(patch.name).trim();
   if (next.name.length > 40) throw new Error('Your name is too long (40 characters max).');
-  if (patch.password) next.password = String(patch.password);
-  if (patch.port !== undefined) next.port = positive(patch.port, 'Port');
-  if (patch.storageLimitGB !== undefined) next.storageLimitGB = positive(patch.storageLimitGB, 'Storage limit');
-  if (patch.cacheLimitGB !== undefined) next.cacheLimitGB = positive(patch.cacheLimitGB, 'Cache size');
-  if (patch.allowPlainFtp !== undefined) next.allowPlainFtp = Boolean(patch.allowPlainFtp);
+  if (patch.key) next.key = String(patch.key).trim();
+  if (patch.cacheLimitGB !== undefined) {
+    const n = Number(patch.cacheLimitGB);
+    if (!(n > 0)) throw new Error('Cache size must be a number above 0.');
+    next.cacheLimitGB = n;
+  }
   if (patch.online !== undefined) next.online = Boolean(patch.online);
-  next.folder = next.folder.replace(/^\/+|\/+$/g, '');
-  if (!next.folder || next.folder.split('/').some(part => !part || part === '.' || part === '..'))
-    throw new Error('The cloud folder must be a plain folder name like "music".');
   mkdirSync(dirname(file()), { recursive: true });
   writeFileSync(file(), JSON.stringify(next, null, 2));
   return next;
 }
 
 export function publicSettings(settings) {
-  const { password, ...rest } = settings;
-  return { ...rest, hasPassword: Boolean(password) };
+  const { key, ...rest } = settings;
+  return { ...rest, hasKey: Boolean(key) };
 }
 
-export const isConfigured = s => Boolean(s.host && s.user && s.password);
+export const isConfigured = s => Boolean(s.url && s.key);
 
 /** Set up, and allowed to connect on this laptop (the Online / Offline switch in Settings). */
 export const isOnline = s => isConfigured(s) && s.online !== false;

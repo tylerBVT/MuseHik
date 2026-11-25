@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-cloud-edit-'));
 mkdirSync(join(tmp, 'music'));
@@ -16,19 +16,19 @@ const { server } = await import('../server.mjs');
 const { saveSettings } = await import('../modules/cloud/settings.mjs');
 const { createPlaylist, getPlaylist } = await import('../modules/musicPlayer/playlists.mjs');
 
-let ftp, base;
-const songsDir = () => join(ftp.root, 'music', 'songs');
-const index = () => JSON.parse(readFileSync(join(ftp.root, 'music', 'library.json'), 'utf8'));
+let remote, base;
+const songsDir = () => join(remote.root, 'music', 'songs');
+const index = () => JSON.parse(readFileSync(join(remote.root, 'music', 'library.json'), 'utf8'));
 before(async () => {
-  ftp = await startFtp();
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp });
+  remote = await startCloud();
+  
+  saveSettings({ ...remote.settings });
   mkdirSync(songsDir(), { recursive: true });
   for (const name of ['Mum - First', 'Mum - Second', 'Taken - Name']) writeFileSync(join(songsDir(), `${name}.mp3`), Buffer.alloc(100));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/cloud`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const api = async (path, init = {}) => {
   const response = await fetch(`${base}${path}`, {
@@ -86,10 +86,10 @@ test('an empty title is refused, an unknown song is 404', async () => {
 test('offline: refused without connecting', async () => {
   const song = await songNamed('Taken - Name.mp3');
   saveSettings({ online: false });
-  const logins = ftp.logins;
+  const logins = remote.requests;
   const { status, body } = await api(`/songs/${song.id}`, { method: 'PATCH', body: { genre: 'X' } });
   assert.equal(status, 400);
   assert.match(body.error, /offline/);
-  assert.equal(ftp.logins, logins);
+  assert.equal(remote.requests, logins);
   saveSettings({ online: true });
 });

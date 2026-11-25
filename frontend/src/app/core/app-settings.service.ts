@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { API } from './api';
 import { desktop } from './desktop';
+import { hasServer } from './platform';
 
 export type Profile = 'poontje' | 'muttmutt';
 
@@ -36,6 +37,7 @@ export class AppSettingsService {
   }
 
   async load(): Promise<void> {
+    if (!hasServer) return; // phone: no profile, no music folder, no AI tools
     try {
       this.info.set(await call<AppInfo>(''));
     } catch {

@@ -4,14 +4,14 @@
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { open, rename, rm, stat } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { parseFile } from 'music-metadata';
 import { heavyDir } from '../../core/config.mjs';
-import { trackKey } from '../../core/lib.mjs';
 import { db, findDuplicate } from '../../core/library.mjs';
 import { GB } from './limits.mjs';
 import { loadSettings } from './settings.mjs';
-import { songPath, withCloud } from './store.mjs';
+import { withCloud } from './store.mjs';
 
 export const cacheDir = process.env.CLOUD_CACHE_DIR || join(heavyDir, 'cloudCache');
 
@@ -70,7 +70,6 @@ async function fillTags(cloud, song, path) {
     if (common.artist) patch.artist = common.artist;
     if (common.album) patch.album = common.album;
     if (common.isrc?.[0]) patch.isrc = common.isrc[0];
-    patch.key = trackKey(patch.artist ?? song.artist, patch.title ?? song.title);
     await cloud.updateSong(song.id, patch);
   } catch (e) {
     console.error(`Could not read the tags of "${song.file}":`, e.message);
@@ -103,7 +102,8 @@ export function startFetch(song, settings = loadSettings()) {
     const file = await open(dl.path, 'w');
     try {
       await withCloud(async cloud => {
-        dl.size = await cloud.session.size(songPath(song)).catch(() => 0);
+        const { size, body } = await cloud.open(song);
+        dl.size = size;
         markReady();
         // Counts the bytes really on disk, so a reader never asks for bytes not written yet.
         const sink = new Writable({
@@ -111,7 +111,7 @@ export function startFetch(song, settings = loadSettings()) {
             file.write(chunk).then(() => { dl.written += chunk.length; notify(); done(); }, done);
           },
         });
-        await cloud.session.download(songPath(song), sink);
+        await pipeline(Readable.fromWeb(body), sink);
       }, settings);
       await file.close();
       await rename(dl.path, target);

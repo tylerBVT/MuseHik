@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-stream-'));
 mkdirSync(join(tmp, 'music'));
@@ -19,18 +19,18 @@ const { localSource } = await import('../modules/cloud/cache.mjs');
 const SIZE = 400_000;
 const bytes = Buffer.from(Array.from({ length: SIZE }, (_, i) => (i * 7) % 256));
 
-let ftp, base;
+let remote, base;
 before(async () => {
-  ftp = await startFtp({ slow: { pattern: /Slow/, chunk: 20_000, delayMs: 50 } }); // 20 pieces: about 1 s
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp });
-  mkdirSync(join(ftp.root, 'music', 'songs'), { recursive: true });
-  writeFileSync(join(ftp.root, 'music', 'songs', 'Slow - One.mp3'), bytes);
-  writeFileSync(join(ftp.root, 'music', 'songs', 'Slow - Two.mp3'), bytes);
+  remote = await startCloud({ slow: { pattern: /Slow/, chunk: 20_000, delayMs: 50 } }); // 20 pieces: about 1 s
+  
+  saveSettings({ ...remote.settings });
+  mkdirSync(join(remote.root, 'music', 'songs'), { recursive: true });
+  writeFileSync(join(remote.root, 'music', 'songs', 'Slow - One.mp3'), bytes);
+  writeFileSync(join(remote.root, 'music', 'songs', 'Slow - Two.mp3'), bytes);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/cloud`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const songNamed = async file => (await (await fetch(`${base}/songs`)).json()).songs.find(s => s.file === file);
 

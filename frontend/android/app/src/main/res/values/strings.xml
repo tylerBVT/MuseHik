@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MuseHik</string>
+    <string name="title_activity_main">MuseHik</string>
+    <string name="package_name">com.musehik.app</string>
+    <string name="custom_url_scheme">com.musehik.app</string>
+</resources>

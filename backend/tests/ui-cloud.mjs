@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
 import { openPage, wait } from './cdp.mjs';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 import { makeMp3 } from './mp3-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-ui-cloud-'));
@@ -26,7 +26,7 @@ process.env.PORT = await new Promise(resolve => {
   const probe = createServer().listen(0, '127.0.0.1', () => { const { port } = probe.address(); probe.close(() => resolve(String(port))); });
 });
 
-const ftp = await startFtp();
+const cloud = await startCloud();
 const { server } = await import('../server.mjs');
 const { scanLibrary } = await import('../core/library.mjs');
 await scanLibrary();
@@ -63,18 +63,15 @@ try {
   await q(`history.back()`);
   await page.waitFor(`document.querySelector('.gear')`);
   await q(`document.querySelector('.gear').click()`);
-  await page.waitFor(`document.querySelectorAll('app-settings .field').length >= 8`);
-  await typeInField('Host', ftp.settings.host);
-  await typeInField('Port', ftp.settings.port);
-  await typeInField('User', ftp.settings.user);
-  await typeInField('Password', ftp.settings.password);
+  await page.waitFor(`[...document.querySelectorAll('app-settings .field .label')].some(l => l.textContent.trim() === 'Address')`);
+  await typeInField('Address', cloud.settings.url);
+  await typeInField('Key', cloud.settings.key);
   await typeInField('Your name', 'Tyler');
   check('Settings shows the cloud as Online by default', await q(`document.querySelector('app-settings .check.online input').checked`));
-  await q(`[...document.querySelectorAll('app-settings .check')].find(c => c.textContent.includes('unencrypted')).querySelector('input').click()`);
   await click('app-settings .action', 'Save and test');
   check('Save and test connects', await page.waitFor(`document.querySelector('app-settings [role=status]')?.textContent.includes('Connected')`),
     await q(`document.querySelector('app-settings [role=status]')?.textContent.trim()`));
-  check('the password field is emptied after saving', (await q(`[...document.querySelectorAll('app-settings .field input')].find(i => i.type === 'password').value`)) === '');
+  check('the key field is emptied after saving', (await q(`[...document.querySelectorAll('app-settings .field input')].find(i => i.type === 'password').value`)) === '');
   await page.shot('cloud-1-settings');
 
   // Upload: Songs tab (the library song), then Folder tab (two songs from outside the library)
@@ -133,7 +130,7 @@ try {
   check('the cloud agrees', (await songs()).length === 2);
 
   // A song put in songs/ by hand (FileZilla) shows up; the list sorts by date and shows it.
-  writeFileSync(join(ftp.root, 'music', 'songs', 'Hand Artist - Hand Song.mp3'), makeMp3({ title: 'Hand Song', artist: 'Hand Artist' }));
+  writeFileSync(join(cloud.root, 'music', 'songs', 'Hand Artist - Hand Song.mp3'), makeMp3({ title: 'Hand Song', artist: 'Hand Artist' }));
   await q(`location.href = ${JSON.stringify(APP)}`);
   await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
   await click('app-home .tile', 'Listen online');
@@ -156,8 +153,8 @@ try {
   await page.shot('cloud-8-song-menu');
   await q(`document.querySelector('app-song-menu button[type=submit]').click()`);
   check('the renamed song shows in the list', await page.waitFor(`!document.querySelector('app-song-menu') && document.querySelector('app-cloud-page app-library-list').textContent.includes('Hand Song Renamed')`));
-  check('the cloud file was renamed too', readdirSync(join(ftp.root, 'music', 'songs')).includes('Hand Artist - Hand Song Renamed.mp3'),
-    readdirSync(join(ftp.root, 'music', 'songs')).join(', '));
+  check('the cloud file was renamed too', readdirSync(join(cloud.root, 'music', 'songs')).includes('Hand Artist - Hand Song Renamed.mp3'),
+    readdirSync(join(cloud.root, 'music', 'songs')).join(', '));
   check('a Genre menu appears with Rap', await page.waitFor(`[...document.querySelectorAll('app-cloud-page select[aria-label="Show genre"] option')].some(o => o.textContent.trim() === 'Rap')`));
 
   // "Download to cloud": its own page, and no tick box on the normal downloader any more.
@@ -202,7 +199,7 @@ try {
   check('the library song gets the new genre', await page.waitFor(`[...document.querySelectorAll('app-tracks-page select[aria-label="Show genre"] option')].some(o => o.textContent.trim() === 'Jazz')`));
 
   // Shared playlists: make one from a library song + a cloud-only song, share it.
-  const cloudPlaylists = () => JSON.parse(readFileSync(join(ftp.root, 'music', 'playlists.json'), 'utf8')).playlists;
+  const cloudPlaylists = () => JSON.parse(readFileSync(join(cloud.root, 'music', 'playlists.json'), 'utf8')).playlists;
   await q(`location.href = ${JSON.stringify(APP)}`);
   await page.waitFor(`document.querySelectorAll('app-home .tile').length >= 6`);
   await click('app-home .tile', 'Create playlist');
@@ -223,7 +220,7 @@ try {
 
   // Mum's laptop shares a playlist: one song she uploaded, one that is nowhere.
   const onCloud = (await songs())[0];
-  writeFileSync(join(ftp.root, 'music', 'playlists.json'), JSON.stringify({ version: 1, playlists: [...cloudPlaylists(), {
+  writeFileSync(join(cloud.root, 'music', 'playlists.json'), JSON.stringify({ version: 1, playlists: [...cloudPlaylists(), {
     uid: 'u-mum', name: "Mum's mix", owner: 'Mum', updatedAt: Date.now(),
     songs: [{ title: onCloud.title, artist: onCloud.artist, album: onCloud.album, duration: onCloud.duration, isrc: null },
       { title: 'Lost Song', artist: 'Nobody', album: '', duration: 100, isrc: null }],
@@ -247,7 +244,7 @@ try {
   await page.waitFor(`document.querySelector('app-settings .check.online input')`);
   await q(`document.querySelector('app-settings .check.online input').click()`);
   check('the switch saves Offline', await page.waitFor(`document.querySelector('app-settings [role=status]')?.textContent.includes('off for this laptop')`));
-  const loginsWhenOff = ftp.logins;
+  const loginsWhenOff = cloud.requests;
   await q(`history.back()`);
   await page.waitFor(`document.querySelector('app-home')`);
   check('the Cloud tile says Offline', await page.waitFor(`[...document.querySelectorAll('app-home .tile')].some(t => t.textContent.includes('Cloud') && t.textContent.includes('Offline'))`));
@@ -255,7 +252,7 @@ try {
   check('the Cloud page shows the last list and says it is offline', await page.waitFor(`document.querySelector('app-cloud-page')?.textContent.includes('offline on this laptop')`)
     && await page.waitFor(`document.querySelectorAll('app-cloud-page app-library-list .row').length >= 2`));
   await page.shot('cloud-11-offline');
-  check('no connection was made while offline', ftp.logins === loginsWhenOff, `${ftp.logins - loginsWhenOff} new`);
+  check('no connection was made while offline', cloud.requests === loginsWhenOff, `${cloud.requests - loginsWhenOff} new`);
 } catch (e) {
   failed++;
   console.log(`FAIL  ${e.message}`);
@@ -263,7 +260,7 @@ try {
 } finally {
   await page.close(true);
   server.close();
-  await ftp.close();
+  await cloud.close();
 }
 console.log(failed ? `${failed} check(s) failed` : 'All cloud UI checks passed');
 process.exit(failed ? 1 : 0);

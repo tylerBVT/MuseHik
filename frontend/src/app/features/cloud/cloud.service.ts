@@ -1,18 +1,16 @@
 import { Injectable, signal } from '@angular/core';
 import { API, Track, cloudTrack } from '../../core/api';
 import type { SongChanges } from '../../core/library.service';
+import { phoneCloud } from './phone';
 
 export type CloudSettings = {
-  host: string;
-  port: number;
-  user: string;
-  folder: string;
-  storageLimitGB: number;
+  /** The music API's address, e.g. https://www.example.com/music-api */
+  url: string;
   cacheLimitGB: number;
-  allowPlainFtp: boolean;
   /** Off: this laptop never connects to the cloud (songs already on it still play). */
   online: boolean;
-  hasPassword: boolean;
+  /** A key is saved (the key itself never reaches the page). */
+  hasKey: boolean;
   /** Shown on playlists you share. */
   name: string;
   /** `name`, or the computer's name when empty (read only). */
@@ -81,7 +79,7 @@ export type SaveJob = {
 
 /** Set up, and switched to Online on this laptop. */
 export function cloudOnline(s: CloudSettings | null): boolean {
-  return Boolean(s && s.host && s.user && s.hasPassword && s.online !== false);
+  return Boolean(s && s.url && s.hasKey && s.online !== false);
 }
 
 /** "410 MB", "3.2 GB" (1 GB = 1000 MB, like the hosting counts). */
@@ -90,7 +88,10 @@ export function formatSize(bytes: number): string {
   return `${Number((bytes / 1e9).toFixed(bytes < 1e10 ? 2 : 1))} GB`;
 }
 
-/** Talks to the local server's /api/cloud (which does the FTP work). */
+/**
+ * Laptop: talks to the local server's /api/cloud (which talks to the music API on the hosting).
+ * Phone: the same calls are done in the app itself, straight to the music API (phone/phone-cloud.ts).
+ */
 @Injectable({ providedIn: 'root' })
 export class CloudService {
   readonly status = signal<CloudStatus | null>(null);
@@ -99,7 +100,7 @@ export class CloudService {
 
   async loadStatus(): Promise<void> {
     try {
-      this.status.set(await this.call<CloudStatus>('GET', '/status'));
+      this.status.set(phoneCloud ? await phoneCloud.status() : await this.call<CloudStatus>('GET', '/status'));
     } catch (e) {
       this.status.set({ configured: true, error: (e as Error).message });
     }
@@ -107,6 +108,7 @@ export class CloudService {
 
   /** `mode` 'offline': switched off on this laptop; `offline` alone: the cloud could not be reached. */
   songs(): Promise<{ songs: CloudSong[]; offline: boolean; mode?: 'online' | 'offline'; error?: string }> {
+    if (phoneCloud) return phoneCloud.songs();
     return this.call('GET', '/songs');
   }
 
@@ -116,11 +118,13 @@ export class CloudService {
   }
 
   deleteSong(id: number): Promise<unknown> {
+    if (phoneCloud) return phoneCloud.deleteSong(id);
     return this.call('DELETE', `/songs/${id}`);
   }
 
   /** Song menu: new title, artist and/or genre in the shared list (the cloud file is renamed to match). */
   editSong(id: number, changes: SongChanges): Promise<CloudSong> {
+    if (phoneCloud) return phoneCloud.editSong(id, changes);
     return this.call('PATCH', `/songs/${id}`, changes);
   }
 
@@ -130,16 +134,17 @@ export class CloudService {
   }
 
   async getSettings(): Promise<CloudSettings> {
-    const settings = await this.call<CloudSettings>('GET', '/settings');
+    const settings = phoneCloud ? phoneCloud.getSettings() : await this.call<CloudSettings>('GET', '/settings');
     this.settings.set(settings);
     return settings;
   }
-  async saveSettings(patch: Partial<Omit<CloudSettings, 'displayName'>> & { password?: string }): Promise<CloudSettings> {
-    const settings = await this.call<CloudSettings>('PUT', '/settings', patch);
+  async saveSettings(patch: Partial<Omit<CloudSettings, 'displayName'>> & { key?: string }): Promise<CloudSettings> {
+    const settings = phoneCloud ? phoneCloud.saveSettings(patch) : await this.call<CloudSettings>('PUT', '/settings', patch);
     this.settings.set(settings);
     return settings;
   }
   testConnection(): Promise<{ ok: boolean; secure?: boolean; error?: string }> {
+    if (phoneCloud) return phoneCloud.testConnection();
     return this.call('POST', '/test');
   }
 
@@ -150,30 +155,50 @@ export class CloudService {
     return this.call('POST', '/folder/scan', { path });
   }
 
-  startUpload(selection: { trackIds?: number[]; paths?: string[] }): Promise<{ jobId: string }> {
+  /** Laptop: library ids or paths on the laptop. Phone: files picked on the phone. */
+  async startUpload(selection: { trackIds?: number[]; paths?: string[]; files?: File[] }): Promise<{ jobId: string }> {
+    if (phoneCloud) return phoneCloud.startUpload(selection.files ?? []);
     return this.call('POST', '/upload', selection);
   }
-  getUpload(id: string): Promise<UploadJob> {
+  async getUpload(id: string): Promise<UploadJob> {
+    if (phoneCloud) return found(phoneCloud.getUpload(id), 'Unknown upload');
     return this.call('GET', `/upload/${id}`);
   }
-  activeUpload(): Promise<UploadJob | null> {
+  async activeUpload(): Promise<UploadJob | null> {
+    if (phoneCloud) return phoneCloud.activeUpload();
     return this.call('GET', '/upload/active');
   }
-  cancelUpload(id: string): Promise<UploadJob> {
+  async cancelUpload(id: string): Promise<UploadJob> {
+    if (phoneCloud) return found(phoneCloud.cancelUpload(id), 'Unknown upload');
     return this.call('POST', `/upload/${id}/cancel`);
   }
 
+  /** Laptop: copies into the music folder. Phone: saves on the phone (plays without the network). */
   startSave(ids: number[]): Promise<{ jobId: string }> {
+    if (phoneCloud) return phoneCloud.startSave(ids);
     return this.call('POST', '/save', { ids });
   }
-  getSave(id: string): Promise<SaveJob> {
+  async getSave(id: string): Promise<SaveJob> {
+    if (phoneCloud) return found(phoneCloud.getSave(id), 'Unknown save');
     return this.call('GET', `/save/${id}`);
   }
-  activeSave(): Promise<SaveJob | null> {
+  async activeSave(): Promise<SaveJob | null> {
+    if (phoneCloud) return phoneCloud.activeSave();
     return this.call('GET', '/save/active');
   }
-  cancelSave(id: string): Promise<SaveJob> {
+  async cancelSave(id: string): Promise<SaveJob> {
+    if (phoneCloud) return found(phoneCloud.cancelSave(id), 'Unknown save');
     return this.call('POST', `/save/${id}/cancel`);
+  }
+
+  /** Phone only: the tags of a file picked on the phone, to list it by its real title (null when unreadable). */
+  async readTags(file: File): Promise<{ title: string; artist: string } | null> {
+    return phoneCloud ? phoneCloud.readTags(file) : null;
+  }
+
+  /** Phone only: removes the copy saved on this phone (the cloud keeps the song). */
+  async removeFromPhone(id: number): Promise<void> {
+    await phoneCloud?.removeFromPhone(id);
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -191,4 +216,9 @@ export class CloudService {
     if (!response.ok) throw new Error((data as { error?: string } | null)?.error ?? `Server error ${response.status}`);
     return data as T;
   }
+}
+
+function found<T>(value: T | null, message: string): T {
+  if (value === null) throw new Error(message);
+  return value;
 }

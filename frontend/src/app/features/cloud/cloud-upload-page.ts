@@ -1,14 +1,16 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { LibraryService } from '../../core/library.service';
+import { isPhone } from '../../core/platform';
 import { PageHeader } from '../../shared/page-header';
 import { PlaylistService } from '../musicPlayer/playlist.service';
 import { CloudService, FolderSong, UploadJob, formatSize } from './cloud.service';
 import { CloudUsage } from './usage-bar';
 
-type Tab = 'songs' | 'playlist' | 'folder';
+/** The laptop picks from its library, a playlist or a folder; the phone picks files on the phone. */
+type Tab = 'songs' | 'playlist' | 'folder' | 'phone';
 type Row = { key: string; title: string; artist: string; size: number };
 
-/** Send songs to the cloud: picked from All tracks, a whole playlist, or any folder on this laptop. */
+/** Send songs to the cloud: picked from All tracks, a whole playlist, or any folder on this laptop; files on the phone. */
 @Component({
   imports: [PageHeader, CloudUsage],
   selector: 'app-cloud-upload-page',
@@ -21,7 +23,10 @@ export class CloudUploadPage implements OnInit, OnDestroy {
   protected readonly playlists = inject(PlaylistService);
   protected readonly size = formatSize;
 
-  protected readonly tab = signal<Tab>('songs');
+  protected readonly isPhone = isPhone;
+  protected readonly tab = signal<Tab>(isPhone ? 'phone' : 'songs');
+  /** Phone: the files picked so far (ticked by default). */
+  protected readonly phoneFiles = signal<{ key: string; file: File; tags?: { title: string; artist: string } }[]>([]);
   protected readonly query = signal('');
   /** Library song ids ticked on the Songs tab. */
   protected readonly pickedIds = signal<ReadonlySet<number>>(new Set());
@@ -43,6 +48,14 @@ export class CloudUploadPage implements OnInit, OnDestroy {
       .filter((t) => words.every((w) => `${t.title} ${t.artist} ${t.album}`.toLowerCase().includes(w)))
       .map((t) => ({ key: String(t.id), title: t.title, artist: t.artist, size: t.size ?? 0 }));
   });
+  protected readonly phoneRows = computed<Row[]>(() =>
+    this.phoneFiles().map(({ key, file, tags }) => {
+      if (tags) return { key, title: tags.title, artist: tags.artist, size: file.size };
+      const base = file.name.replace(/.[^.]+$/, '');
+      const dash = base.indexOf(' - ');
+      return { key, title: dash > 0 ? base.slice(dash + 3) : base, artist: dash > 0 ? base.slice(0, dash) : '', size: file.size };
+    }),
+  );
   protected readonly folderRows = computed<Row[]>(() =>
     this.folderSongs().map((s) => ({ key: s.path, title: s.title, artist: s.artist, size: s.size })),
   );
@@ -50,18 +63,23 @@ export class CloudUploadPage implements OnInit, OnDestroy {
   /** What the Upload button would send, and its total size. */
   protected readonly selection = computed(() => {
     const tab = this.tab();
+    if (tab === 'phone') {
+      const picked = this.pickedPaths();
+      const files = this.phoneFiles().filter((f) => picked.has(f.key)).map((f) => f.file);
+      return { trackIds: [], paths: [], files, count: files.length, bytes: files.reduce((s, f) => s + f.size, 0) };
+    }
     if (tab === 'songs') {
       const ids = [...this.pickedIds()];
       const sizes = new Map(this.library.tracks().map((t) => [t.id, t.size ?? 0]));
-      return { trackIds: ids, paths: [], count: ids.length, bytes: ids.reduce((s, id) => s + (sizes.get(id) ?? 0), 0) };
+      return { trackIds: ids, paths: [], files: [], count: ids.length, bytes: ids.reduce((s, id) => s + (sizes.get(id) ?? 0), 0) };
     }
     if (tab === 'playlist') {
       const rows = this.playlistRows();
-      return { trackIds: rows.map((r) => Number(r.key)), paths: [], count: rows.length, bytes: rows.reduce((s, r) => s + r.size, 0) };
+      return { trackIds: rows.map((r) => Number(r.key)), paths: [], files: [], count: rows.length, bytes: rows.reduce((s, r) => s + r.size, 0) };
     }
     const picked = this.pickedPaths();
     const rows = this.folderSongs().filter((s) => picked.has(s.path));
-    return { trackIds: [], paths: rows.map((r) => r.path), count: rows.length, bytes: rows.reduce((s, r) => s + r.size, 0) };
+    return { trackIds: [], paths: rows.map((r) => r.path), files: [], count: rows.length, bytes: rows.reduce((s, r) => s + r.size, 0) };
   });
 
   protected readonly freeStorage = computed(() => {
@@ -127,6 +145,26 @@ export class CloudUploadPage implements OnInit, OnDestroy {
     );
   }
 
+  /** Phone: files chosen in Android's picker join the list, ticked. */
+  protected addPhoneFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const added = [...(input.files ?? [])].map((file) => ({ key: `${file.name}|${file.size}|${file.lastModified}`, file }));
+    const known = new Set(this.phoneFiles().map((f) => f.key));
+    const fresh = added.filter((f) => !known.has(f.key));
+    this.phoneFiles.update((list) => [...list, ...fresh]);
+    this.pickedPaths.update((set) => new Set([...set, ...fresh.map((f) => f.key)]));
+    input.value = ''; // the same files can be chosen again
+    void this.readPickedTags(fresh);
+  }
+
+  /** Lists picked files by their tags (what will be sent), one after the other. */
+  private async readPickedTags(files: { key: string; file: File }[]): Promise<void> {
+    for (const { key, file } of files) {
+      const tags = await this.cloud.readTags(file);
+      if (tags) this.phoneFiles.update((list) => list.map((f) => (f.key === key ? { ...f, tags } : f)));
+    }
+  }
+
   protected async pickFolder(): Promise<void> {
     this.busy.set(true);
     try {
@@ -162,9 +200,9 @@ export class CloudUploadPage implements OnInit, OnDestroy {
   protected async upload(): Promise<void> {
     if (!this.canUpload()) return;
     this.error.set(null);
-    const { trackIds, paths } = this.selection();
+    const { trackIds, paths, files } = this.selection();
     try {
-      const { jobId } = await this.cloud.startUpload({ trackIds, paths });
+      const { jobId } = await this.cloud.startUpload({ trackIds, paths, files });
       this.follow(await this.cloud.getUpload(jobId));
     } catch (e) {
       this.error.set((e as Error).message);

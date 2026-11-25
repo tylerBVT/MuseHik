@@ -2,7 +2,7 @@
   <footer class="bar" aria-label="Player">
     <div class="now">
       <span class="art">
-        @if (coverMissing() === track.id) {
+        @if (coverMissing() === track.id || !coverUrl(track)) {
           <span class="placeholder" aria-hidden="true">♫</span>
         } @else {
           <img

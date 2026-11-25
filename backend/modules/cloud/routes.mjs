@@ -1,4 +1,4 @@
-// Cloud API (songs on the LWS hosting, over FTP):
+// Cloud API (songs on the LWS hosting, through the music API in music-api/):
 //   GET/PUT /api/cloud/settings, POST /api/cloud/test, GET /api/cloud/status
 //   GET /api/cloud/songs, GET /api/cloud/songs/:id/stream (Range), GET /api/cloud/songs/:id/cover,
 //   POST /api/cloud/songs/:id/prefetch, PATCH /api/cloud/songs/:id {title?, artist?, genre?}, DELETE /api/cloud/songs/:id,
@@ -12,9 +12,9 @@
 import { coverOf } from '../../core/library.mjs';
 import { readJson, streamFile, streamGrowing } from '../../core/http.mjs';
 import { fetchSong, localSource, startFetch, touch } from './cache.mjs';
-import { testConnection } from './remote.mjs';
+import { testConnection } from './api.mjs';
 import { OFFLINE_MESSAGE, isConfigured, isOnline, loadSettings, publicSettings, saveSettings } from './settings.mjs';
-import { EditError, cloudStatus, lastIndex, rebuildIndex, syncFolder, withCloud } from './store.mjs';
+import { EditError, cloudStatus, lastIndex, rebuildIndex, withCloud } from './store.mjs';
 import { renameSongEverywhere, setShared } from '../musicPlayer/playlists.mjs';
 import { ownerName, requestSync, syncPlaylists } from './playlistSync.mjs';
 import { activeSave, cancelSave, getSave, startSave } from './save.mjs';
@@ -32,7 +32,7 @@ const withLaptopFlag = songs => songs.map(s => {
   const here = localSource(s);
   return { ...s, onLaptop: Boolean(here), inLibrary: here?.from === 'library' };
 });
-/** Settings for the page: no password, plus the name shown on playlists this laptop shares. */
+/** Settings for the page: no key, plus the name shown on playlists this laptop shares. */
 const forPage = s => ({ ...publicSettings(s), displayName: ownerName(s) });
 
 /** Handles the request if it belongs to this module; returns true when it did. */
@@ -59,7 +59,7 @@ export async function handle(req, { res, json, cors }) {
     }
     try {
       // Songs added to songs/ by hand (FileZilla...) join the list; songs deleted by hand leave it.
-      const index = await withCloud(async c => { await syncFolder(c); return c.index(); });
+      const index = await withCloud(c => c.index());
       json(200, { songs: withLaptopFlag(index.songs), offline: false, mode: 'online' });
     } catch (e) {
       // Cloud unreachable: show the last known list; songs on this laptop still play.
@@ -75,9 +75,8 @@ export async function handle(req, { res, json, cors }) {
     if (!action && method === 'PATCH') {
       const changes = await readJson(req, 5000);
       try {
-        // Files added by hand are listed first, so a rename never takes the name of one of them.
+        // Listing first also picks up files added by hand, so a rename never takes the name of one of them.
         const result = await withCloud(async c => {
-          await syncFolder(c);
           const before = (await c.index()).songs.find(s => s.id === id);
           return before ? { before, after: await c.editSong(id, changes) } : null;
         });

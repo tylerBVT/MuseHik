@@ -1,5 +1,4 @@
-// "Download from cloud": copies cloud songs into this laptop's music folder and library, one by one on the transfer
-// connection. A song already cached on this laptop is copied from the cache (no download). The file gets the shared
+// "Download from cloud": copies cloud songs into this laptop's music folder and library, one by one. A song already cached on this laptop is copied from the cache (no download). The file gets the shared
 // list's title, artist and genre as tags (a song added by hand, or renamed in the app, may have other tags), and is
 // written as "<name>.part.mp3" first, so the library never sees half a song.
 import { randomUUID } from 'node:crypto';
@@ -12,7 +11,7 @@ import { addFile, findDuplicate, freePath } from '../../core/library.mjs';
 import { writeTags } from '../../core/tags.mjs';
 import { localSource } from './cache.mjs';
 import { isOnline, loadSettings } from './settings.mjs';
-import { lastIndex, songPath, syncFolder, withCloud } from './store.mjs';
+import { lastIndex, withCloud } from './store.mjs';
 
 const jobs = new Map();
 const controllers = new Map(); // job id -> AbortController (kept out of the job so it stays JSON-serialisable)
@@ -42,7 +41,7 @@ export function startSave(ids, settings = loadSettings()) {
 async function cloudList(settings) {
   if (!isOnline(settings)) return lastIndex()?.songs ?? [];
   try {
-    return await withCloud(async cloud => { await syncFolder(cloud); return (await cloud.index()).songs; }, settings);
+    return await withCloud(async cloud => (await cloud.index()).songs, settings);
   } catch {
     return lastIndex()?.songs ?? [];
   }
@@ -67,7 +66,7 @@ async function run(job, ids, settings, signal) {
     try {
       const cached = localSource(song);
       if (cached?.from === 'cache') await copyFile(cached.path, part);
-      else await withCloud(cloud => cloud.session.download(songPath(song), part, { signal }), settings, { lane: 'transfer' });
+      else await withCloud(cloud => cloud.download(song, part, { signal }), settings);
       if (signal.aborted) throw new Error('Cloud: stopped.');
       let tagged = true;
       try {

@@ -1,66 +1,64 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 process.env.CLOUD_SETTINGS = join(mkdtempSync(join(tmpdir(), 'cloud-settings-')), 'cloud.json');
-const { checkStorage, LimitError, usageSummary } = await import('../modules/cloud/limits.mjs');
+const { usageSummary } = await import('../modules/cloud/limits.mjs');
 const { isConfigured, loadSettings, publicSettings, saveSettings } = await import('../modules/cloud/settings.mjs');
 
 const GB = 1e9;
 
-test('usageSummary: storage bar warns at 80 %, traffic is not counted', () => {
-  const settings = { storageLimitGB: 30 };
-  const s = usageSummary({ settings, storedBytes: 24 * GB });
-  assert.equal('usedBytes' in s, false);
-  assert.equal('month' in s, false);
+test('usageSummary: storage bar against the cap the server reports, warns at 80 %', () => {
+  const s = usageSummary({ storedBytes: 24 * GB, storageLimitBytes: 30 * GB });
   assert.equal(s.storedBytes, 24 * GB);
   assert.equal(s.storageLimitBytes, 30 * GB);
   assert.equal(s.percent, 80);
   assert.equal(s.warning, true);
-  assert.equal('limitBytes' in s, false);
-  assert.equal('reached' in s, false);
-
-  const calm = usageSummary({ settings, storedBytes: 3 * GB });
+  const calm = usageSummary({ storedBytes: 3 * GB, storageLimitBytes: 30 * GB });
   assert.equal(calm.percent, 10);
   assert.equal(calm.warning, false);
 });
 
-test('checkStorage refuses past the storage cap', () => {
-  assert.doesNotThrow(() => checkStorage({ storedBytes: 29 * GB, storageLimitBytes: 30 * GB, bytes: 0.5 * GB }));
-  assert.throws(() => checkStorage({ storedBytes: 29.9 * GB, storageLimitBytes: 30 * GB, bytes: 2e8 }),
-    e => e instanceof LimitError && /Not enough cloud storage/.test(e.message));
-});
-
-test('settings have the agreed defaults', () => {
+test('settings have the agreed defaults: no FTP fields, not set up', () => {
   const s = loadSettings();
-  assert.equal(s.folder, 'music');
-  assert.equal(s.port, 21);
-  assert.equal('monthlyLimitGB' in s, false);
-  assert.equal(s.storageLimitGB, 30);
-  assert.equal(s.cacheLimitGB, 2);
-  assert.equal(s.allowPlainFtp, false);
+  assert.deepEqual(s, { url: '', key: '', name: '', cacheLimitGB: 2, online: true });
   assert.equal(isConfigured(s), false);
 });
 
-test('saveSettings keeps the password when none is sent', () => {
-  saveSettings({ host: 'ftp.example.com', user: 'me', password: 'first-secret' });
-  const saved = saveSettings({ host: 'ftp.example.com', user: 'me', password: '' });
-  assert.equal(saved.password, 'first-secret');
-  assert.equal(loadSettings().password, 'first-secret');
+test('an old FTP settings file loads without its FTP fields, and saving drops them for good', () => {
+  writeFileSync(process.env.CLOUD_SETTINGS, JSON.stringify({
+    host: 'ftp.example.com', port: 21, user: 'me', password: 'ftp-secret', folder: 'music', name: 'Tyler',
+    storageLimitGB: 30, cacheLimitGB: 3, allowPlainFtp: true, online: true, monthlyLimitGB: 10,
+  }));
+  assert.deepEqual(loadSettings(), { url: '', key: '', name: 'Tyler', cacheLimitGB: 3, online: true });
+  saveSettings({ name: 'Tyler' });
+  assert.equal(readFileSync(process.env.CLOUD_SETTINGS, 'utf8').includes('ftp-secret'), false);
+});
+
+test('the address is cleaned up: https:// added, trailing slashes dropped', () => {
+  assert.equal(saveSettings({ url: ' www.example.com/music-api/ ' }).url, 'https://www.example.com/music-api');
+  assert.equal(saveSettings({ url: 'http://192.168.1.10:8000' }).url, 'http://192.168.1.10:8000');
+  assert.throws(() => saveSettings({ url: 'ftp://example.com' }), /address/);
+  assert.throws(() => saveSettings({ url: 'https://' }), /address/);
+});
+
+test('saveSettings keeps the key when none is sent', () => {
+  saveSettings({ url: 'https://example.com/music-api', key: 'first-secret' });
+  const saved = saveSettings({ key: '' });
+  assert.equal(saved.key, 'first-secret');
   assert.equal(isConfigured(loadSettings()), true);
 });
 
-test('publicSettings hides the password', () => {
+test('publicSettings hides the key', () => {
   const pub = publicSettings(loadSettings());
-  assert.equal('password' in pub, false);
-  assert.equal(pub.hasPassword, true);
+  assert.equal('key' in pub, false);
+  assert.equal(pub.hasKey, true);
   assert.equal(JSON.stringify(pub).includes('first-secret'), false);
 });
 
-test('a settings file saved with the old monthly limit loses it', () => {
-  writeFileSync(process.env.CLOUD_SETTINGS, JSON.stringify({ ...loadSettings(), monthlyLimitGB: 10 }));
-  assert.equal('monthlyLimitGB' in loadSettings(), false);
-  assert.equal('monthlyLimitGB' in saveSettings({ name: 'Tyler' }), false);
+test('bad numbers and long names are refused', () => {
+  assert.throws(() => saveSettings({ cacheLimitGB: 0 }), /Cache size/);
+  assert.throws(() => saveSettings({ name: 'x'.repeat(41) }), /too long/);
 });

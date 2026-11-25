@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-routes-'));
 mkdirSync(join(tmp, 'music'));
@@ -14,15 +14,15 @@ process.env.CLOUD_CACHE_DIR = join(tmp, 'cache');
 const { server } = await import('../server.mjs');
 const { saveSettings } = await import('../modules/cloud/settings.mjs');
 
-let ftp, base;
+let remote, base;
 before(async () => {
-  ftp = await startFtp();
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp });
+  remote = await startCloud();
+  
+  saveSettings({ ...remote.settings });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/cloud`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const api = async (path, init = {}) => {
   const response = await fetch(`${base}${path}`, {
@@ -40,16 +40,19 @@ async function waitUpload(jobId) {
   throw new Error('upload did not finish');
 }
 
-test('settings GET never returns the password', async () => {
+test('settings GET never returns the key', async () => {
   const { status, body } = await api('/settings');
   assert.equal(status, 200);
-  assert.equal(body.hasPassword, true);
+  assert.equal(body.hasKey, true);
+  assert.equal(body.url, remote.settings.url);
   assert.ok(body.displayName, 'the name shown on shared playlists');
-  assert.equal('password' in body, false);
-  assert.equal(JSON.stringify(body).includes(ftp.settings.password), false);
-  const saved = await api('/settings', { method: 'PUT', body: { storageLimitGB: 30 } });
+  assert.equal('key' in body, false);
+  assert.equal(JSON.stringify(body).includes(remote.settings.key), false);
+  const saved = await api('/settings', { method: 'PUT', body: { cacheLimitGB: 2 } });
   assert.equal(saved.status, 200);
-  assert.equal('password' in saved.body, false);
+  assert.equal('key' in saved.body, false);
+  const bad = await api('/settings', { method: 'PUT', body: { url: 'ftp://nope' } });
+  assert.equal(bad.status, 400);
 });
 
 test('connection test and status', async () => {
@@ -84,8 +87,8 @@ test('upload then list then stream with Range 206', async () => {
 });
 
 test('a song added by hand streams in full', async () => {
-  mkdirSync(join(ftp.root, 'music', 'songs'), { recursive: true });
-  writeFileSync(join(ftp.root, 'music', 'songs', 'Far - Away.mp3'), Buffer.alloc(1000));
+  mkdirSync(join(remote.root, 'music', 'songs'), { recursive: true });
+  writeFileSync(join(remote.root, 'music', 'songs', 'Far - Away.mp3'), Buffer.alloc(1000));
   await api('/rebuild', { method: 'POST' });
   const song = (await api('/songs')).body.songs.find(s => s.file === 'Far - Away.mp3');
   const response = await fetch(`${base}/songs/${song.id}/stream`);

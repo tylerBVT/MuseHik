@@ -22,7 +22,7 @@ Spotify link                                   IN PROGRESS          todo        
 | Short term | **Downloader**: YouTube / Spotify / Deezer link -> tagged MP3 in the library (yt-dlp + ffmpeg) | Done |
 | Short term | **Player + library**: SQLite index, search, playlists, mini + full-screen player, media keys | Done |
 | Short term | **Instrumental separation**: MP3 in -> best possible instrumental MP3 out (RoFormer / Demucs models, ensembles) | **First version, testing**: pick a song + Fast / Best quality / Keep backing vocals, progress bar, listen, compare, download. Engine: RoFormer models + MSST TTA + UVR ensembles + karaoke-gen backing vocals ([module README](backend/modules/instrumentalSeparator/README.md)) |
-| Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting over FTP; listen from any laptop; 30 GB storage limit with a usage bar; songs put in `music/songs/` with FileZilla show up; sort and filter by date | **Done, works on the real hosting** (first test 2026-11-23) ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
+| Short term | **Cloud**: upload songs (picked, a playlist, or any folder) to the LWS hosting (over FTP until 2026-11-24, now through the music API); listen from any laptop; 30 GB storage limit with a usage bar; songs put in `music/songs/` with FileZilla show up; sort and filter by date | **Done, works on the real hosting** (first test 2026-11-23) ([design](docs/superpowers/specs/2026-11-21-cloud-design.md)) |
 | Short term | **Cloud, live**: songs start while they download; one kept-open connection for listening, one for transfers; Online/Offline switch per laptop (Offline never connects); ⋮ menu on every song (rename, genre, delete); Download to cloud; Download from cloud | **Built, tested on a local FTP server** ([design](docs/superpowers/specs/2026-11-23-cloud-live-design.md)) |
 | Short term | **Windows app**: installer, in-app updates from GitHub Releases, profile switch (Poontje / MuttMutt), music folder picker | **Built** ([design](docs/superpowers/specs/2026-11-23-desktop-app-design.md)) |
 | Short term | **Shared playlists**: a Shared switch puts a playlist (and its songs) on the cloud; the other laptop sees it as "from <name>". Playlists store songs by identity, so they survive re-downloads and work on any laptop | **Done**, tested on a local FTP server ([design](docs/superpowers/specs/2026-11-21-shared-playlists-design.md)) |
@@ -52,12 +52,21 @@ Try the app window without installing: `cd desktop && npm start` (uses this fold
 
 **From the code (development):** double-click `MuseHik.bat` (needs Node.js). It starts the server and opens the app in the browser.
 
+**Music API (`music-api/`, PHP, goes to LWS):** the cloud for the laptops and the phone (songs, streaming with
+seeking, uploads, renames, songs added by hand, storage, shared playlists). The laptops no longer use FTP. Try it on this laptop with
+`cd backend && node tests/music-api-dev.mjs`; details and curl commands in `music-api/README.md`.
+
+**Android phone (early, player shell only):** plug the phone in by USB (USB debugging on), then `cd frontend && npm run android`.
+It builds the same Angular app, packages it with Capacitor (`frontend/android/`) and installs and starts it on the phone.
+Needs the Android SDK (Android Studio) and Java 21. On the phone there is no server, so `core/platform.ts` (`hasServer`)
+hides the downloader, separator, cloud and playlist pages; the library is empty for now.
+
 Developer setup:
 - `backend/`: `npm install`, copy `config.example.json` to `config.json`, Python venv in `backend/.venv`: `pip install -r requirements.txt` (yt-dlp then keeps itself up to date, see Settings). `npm test` runs the tests.
 - `frontend/`: Angular app, `npm install` then `npm start` (or built into `frontend/dist`, served by the backend).
 - Instrumental separator: its own Python venv (PyTorch CUDA) and the AI models live **outside OneDrive** in `C:\Users\<you>\MuseHikData\` (`separator-venv\`, `models\`), so gigabytes are not synced. Change it with `heavyDir` in `config.json` or the `MUSEHIK_HEAVY_DIR` env var.
   Install: `MuseHikData\separator-venv\Scripts\python.exe -m pip install --resume-retries 50 torch torchaudio --index-url https://download.pytorch.org/whl/cu128`
-- Cloud: fill in Settings > Cloud (FTP host, user, password, folder). "Use the cloud on this laptop" off = Offline: no connection at all. Saved in `backend/data/cloud.json` (git-ignored). Played cloud songs are cached in `MuseHikData\cloudCache\` (2 GB). `node tests/ui-cloud.mjs` checks the cloud pages in Chrome against a throw-away FTP server.
+- Cloud: fill in Settings > Cloud (the music API's address and key, from `config.php` on the hosting). "Use the cloud on this laptop" off = Offline: no connection at all. Saved in `backend/data/cloud.json` (git-ignored). Played cloud songs are cached in `MuseHikData\cloudCache\` (2 GB). `node tests/ui-cloud.mjs` checks the cloud pages in Chrome against a throw-away music API. The cloud tests need PHP (`%USERPROFILE%MuseHikDataphp-8.1` or `MUSEHIK_PHP`).
 
 ## Code layout (by module)
 

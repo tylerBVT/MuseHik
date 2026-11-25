@@ -1,4 +1,4 @@
-// Shared playlists: keeps this laptop's shared playlists and the cloud's playlists.json in step.
+// Shared playlists: keeps this laptop's shared playlists and the cloud's (the music API's /playlists) in step.
 // Rule, per playlist (named by its uid on every laptop): the side changed last wins, both ways. Unsharing or
 // deleting a shared playlist writes { uid, deleted: true }, so the other laptop drops its copy. Each person only
 // edits their own playlists, so "last change wins" never throws real work away.
@@ -26,26 +26,30 @@ const forCloud = (local, settings) => ({
 
 async function reconcile(settings) {
   return withCloud(async cloud => {
-    const remote = (await cloud.session.readJson('playlists.json')) ?? { version: 1, playlists: [] };
-    const entries = new Map(remote.playlists.map(p => [p.uid, p]));
+    const entries = new Map((await cloud.playlists()).map(p => [p.uid, p]));
     const counts = { pushed: 0, pulled: 0, removed: 0 };
-    let dirty = false;
-    const put = entry => { entries.set(entry.uid, entry); dirty = true; };
+    // The server keeps an entry only if it is newer than its own ("last change wins", under its lock) and answers
+    // with what it has now. A change it refused (the other side is newer) is picked up at the next sync.
+    const put = async entry => {
+      const { applied, playlist } = await cloud.putPlaylist(entry);
+      entries.set(playlist.uid, playlist);
+      return applied;
+    };
 
     const locals = playlistRows();
     const localUids = new Set(locals.map(l => l.uid));
     for (const local of locals) {
       const entry = entries.get(local.uid);
       if (!entry) {
-        if (local.shared) { put(forCloud(local, settings)); counts.pushed++; }
+        if (local.shared && await put(forCloud(local, settings))) counts.pushed++;
       } else if (entry.updatedAt > local.updatedAt) {
         if (!entry.deleted) { upsertFromCloud(entry); counts.pulled++; }
         // Only a playlist received from the other laptop is removed; one made here just stops being shared.
         else if (local.shared && local.fromCloud) { removeByUid(local.uid); counts.removed++; }
         else if (local.shared) unshareByUid(local.uid, entry.updatedAt);
       } else if (local.updatedAt > entry.updatedAt) {
-        if (local.shared) { put(forCloud(local, settings)); counts.pushed++; }
-        else if (!entry.deleted) put({ uid: local.uid, deleted: true, updatedAt: local.updatedAt }); // unshared here
+        if (local.shared) { if (await put(forCloud(local, settings))) counts.pushed++; }
+        else if (!entry.deleted) await put({ uid: local.uid, deleted: true, updatedAt: local.updatedAt }); // unshared here
       }
     }
 
@@ -55,7 +59,7 @@ async function reconcile(settings) {
       const deletedAt = tombs.get(entry.uid);
       if (entry.deleted) continue;
       if (deletedAt !== undefined && deletedAt >= entry.updatedAt) {
-        put({ uid: entry.uid, deleted: true, updatedAt: deletedAt }); // deleted here after the last edit
+        await put({ uid: entry.uid, deleted: true, updatedAt: deletedAt }); // deleted here after the last edit
       } else {
         upsertFromCloud(entry); // new, or edited on the other laptop after it was deleted here: the edit wins
         if (deletedAt !== undefined) clearTombstone(entry.uid);
@@ -63,7 +67,6 @@ async function reconcile(settings) {
       }
     }
 
-    if (dirty) await cloud.session.writeJson('playlists.json', { version: 1, playlists: [...entries.values()] });
     // The cloud now knows about every delete made here.
     for (const uid of tombs.keys()) if (!entries.has(uid) || entries.get(uid).deleted) clearTombstone(uid);
 

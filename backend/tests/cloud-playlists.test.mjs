@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-shared-'));
 const realConfig = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -23,19 +23,19 @@ const { syncPlaylists } = await import('../modules/cloud/playlistSync.mjs');
 const { activeUpload } = await import('../modules/cloud/upload.mjs');
 const { server } = await import('../server.mjs');
 
-let ftp, base, a, b;
+let remote, base, a, b;
 before(async () => {
-  ftp = await startFtp();
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp, name: 'Tyler' });
+  remote = await startCloud();
+  
+  saveSettings({ ...remote.settings, name: 'Tyler' });
   await scanLibrary();
   [a, b] = listTracks();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
-const cloudFile = name => join(ftp.root, 'music', name);
+const cloudFile = name => join(remote.root, 'music', name);
 const cloudPlaylists = () => JSON.parse(readFileSync(cloudFile('playlists.json'), 'utf8')).playlists;
 const writeCloudPlaylists = list => writeFileSync(cloudFile('playlists.json'), JSON.stringify({ version: 1, playlists: list }));
 const byName = name => P.listPlaylists().find(p => p.name === name);

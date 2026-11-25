@@ -6,6 +6,7 @@ import { CloudService, CloudSettings } from '../features/cloud/cloud.service';
 import { AppSettingsService, Profile } from '../core/app-settings.service';
 import { desktop } from '../core/desktop';
 import { LibraryService } from '../core/library.service';
+import { deviceName, hasServer } from '../core/platform';
 
 /** yt-dlp, the downloader's engine, as reported by GET /api/download/engine. */
 type Engine = {
@@ -45,7 +46,8 @@ export class Settings {
   private readonly cloud = inject(CloudService);
   /** The cloud form (the password field stays empty: the saved one is kept unless a new one is typed). */
   protected readonly cloudForm = signal<CloudSettings | null>(null);
-  protected readonly cloudPassword = signal('');
+  /** The API key being typed (the saved one never comes back to the page). */
+  protected readonly cloudKey = signal('');
   protected readonly cloudBusy = signal(false);
   protected readonly cloudResult = signal<{ ok: boolean; text: string } | null>(null);
 
@@ -64,9 +66,14 @@ export class Settings {
   protected readonly updateText = signal('');
   protected readonly updateChecking = signal(false);
 
+  /** False on the phone: only the sections that work without the laptop's server are shown. */
+  protected readonly hasServer = hasServer;
+  protected readonly device = deviceName;
+
   constructor() {
-    void this.loadEngine();
     void this.loadCloud();
+    if (!hasServer) return;
+    void this.loadEngine();
     void this.app.load();
   }
 
@@ -149,7 +156,7 @@ export class Settings {
     try {
       const saved = await this.cloud.saveSettings({ online });
       this.cloudForm.update((form) => (form ? { ...form, online: saved.online } : saved));
-      this.cloudResult.set({ ok: true, text: online ? 'The cloud is on for this laptop.' : 'The cloud is off for this laptop.' });
+      this.cloudResult.set({ ok: true, text: `The cloud is ${online ? 'on' : 'off'} for this ${deviceName}.` });
       void this.cloud.loadStatus();
     } catch (e) {
       this.cloudResult.set({ ok: false, text: (e as Error).message });
@@ -165,14 +172,14 @@ export class Settings {
     this.cloudBusy.set(true);
     this.cloudResult.set(null);
     try {
-      const { hasPassword: _, displayName: __, ...fields } = form;
-      const saved = await this.cloud.saveSettings({ ...fields, password: this.cloudPassword() || undefined });
+      const { hasKey: _, displayName: __, ...fields } = form;
+      const saved = await this.cloud.saveSettings({ ...fields, key: this.cloudKey() || undefined });
       this.cloudForm.set(saved);
-      this.cloudPassword.set('');
+      this.cloudKey.set('');
       const test = await this.cloud.testConnection();
       this.cloudResult.set(
         test.ok
-          ? { ok: true, text: test.secure ? 'Connected (encrypted, FTPS).' : 'Connected, without encryption (plain FTP).' }
+          ? { ok: true, text: test.secure ? 'Connected (encrypted, HTTPS).' : 'Connected, without encryption (http).' }
           : { ok: false, text: test.error ?? 'Could not connect.' },
       );
       void this.cloud.loadStatus();

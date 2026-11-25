@@ -1,10 +1,10 @@
 // Songs put in music/songs/ with another tool (FileZilla...) show up in the app, and are never overwritten.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 import { makeMp3 } from './mp3-fixture.mjs';
 
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-hand-'));
@@ -17,17 +17,17 @@ const { server } = await import('../server.mjs');
 const { saveSettings } = await import('../modules/cloud/settings.mjs');
 const { getUpload, startUpload } = await import('../modules/cloud/upload.mjs');
 
-let ftp, base, songsDir;
+let remote, base, songsDir;
 before(async () => {
-  ftp = await startFtp();
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp });
-  songsDir = join(ftp.root, 'music', 'songs');
+  remote = await startCloud();
+  
+  saveSettings({ ...remote.settings });
+  songsDir = join(remote.root, 'music', 'songs');
   mkdirSync(songsDir, { recursive: true });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/cloud`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const cloudSongs = async () => (await (await fetch(`${base}/songs`)).json()).songs;
 const byFile = async file => (await cloudSongs()).find(s => s.file === file);
@@ -75,7 +75,7 @@ test('an empty listing never empties the list (a server glitch must not lose tit
 
 test('when nothing changed the list file on the cloud is not rewritten', async () => {
   await cloudSongs();
-  const listFile = join(ftp.root, 'music', 'library.json');
+  const listFile = join(remote.root, 'music', 'library.json');
   const before = statSync(listFile).mtimeMs;
   await new Promise(r => setTimeout(r, 50));
   await cloudSongs();
@@ -86,7 +86,7 @@ test('an upload never overwrites a song added by hand', async () => {
   writeFileSync(join(songsDir, 'Same - Name.mp3'), 'hand-made'); // the app has not listed the cloud since
   const local = join(tmp, 'Same - Name.mp3');
   writeFileSync(local, makeMp3({ title: 'Name', artist: 'Same' }));
-  const job = startUpload({ paths: [local] }, ftp.settings);
+  const job = startUpload({ paths: [local] }, remote.settings);
   for (let i = 0; i < 400 && getUpload(job.id).state === 'running'; i++) await new Promise(r => setTimeout(r, 25));
   const done = getUpload(job.id);
   assert.equal(done.state, 'done');
@@ -94,7 +94,7 @@ test('an upload never overwrites a song added by hand', async () => {
   assert.equal(readFileSync(join(songsDir, 'Same - Name.mp3'), 'utf8'), 'hand-made');
 });
 
-test('playing a song added by hand fills in its title, artist and length from its tags', async () => {
+test('playing a song added by hand fills in its title, artist and length from its tags (and names its file after them)', async () => {
   writeFileSync(join(songsDir, 'whatever.mp3'), makeMp3({ title: 'Tagged Title', artist: 'Tagged Artist', seconds: 3 }));
   const before = await byFile('whatever.mp3');
   assert.equal(before.title, 'whatever');
@@ -106,7 +106,7 @@ test('playing a song added by hand fills in its title, artist and length from it
 
   let after;
   for (let i = 0; i < 40; i++) { // the tags are written right after the download, while the song plays
-    after = await byFile('whatever.mp3');
+    after = (await cloudSongs()).find(s => s.id === before.id);
     if (after.duration) break;
     await new Promise(r => setTimeout(r, 50));
   }
@@ -114,4 +114,6 @@ test('playing a song added by hand fills in its title, artist and length from it
   assert.equal(after.title, 'Tagged Title');
   assert.equal(after.artist, 'Tagged Artist');
   assert.ok(Math.abs(after.duration - 3) < 0.2, String(after.duration));
+  assert.equal(after.file, 'Tagged Artist - Tagged Title.mp3', 'the file is named like every other song');
+  assert.ok(existsSync(join(songsDir, after.file)));
 });

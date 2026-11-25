@@ -31,7 +31,19 @@ Weakness to fix first (before any sync or move to another device):
 
 ## 3. Remote library on the LWS server (stream over wifi, nothing stored on the laptop)
 
-To confirm with LWS **before** designing (from the project brief): is streaming audio allowed on that hosting plan, how much storage and bandwidth, and can it run Node at all? Classic shared hosting often only runs PHP; if so we need either a PHP port of the small API or a cheap VPS.
+**2026-11-24: the laptops use it too** (no more FTP; `docs/superpowers/specs/2026-11-24-cloud-over-api-design.md`).
+**2026-11-24: the phone's API exists** (`music-api/`, PHP, tested locally against the laptops' own code; design:
+`docs/superpowers/specs/2026-11-24-music-api-design.md`). Phone ↔ laptop transfers go through the cloud (phone →
+cloud → laptop and back), no direct link.
+**2026-11-24: live on LWS** at https://www.waixera.com/music-api (`node music-api/deploy.mjs`, skill
+`deploy-music-api`). LWS's edge cache is in front of it: every answer says `Cache-Control: private, no-store`.
+**2026-11-24: the phone has the full cloud** (plan: `docs/superpowers/plans/2026-11-24-phone-cloud.md`): list and play
+cloud songs, rename, delete, upload files from the phone (tags read on the phone), save songs on the phone for
+offline play ("All tracks" on the phone = songs saved on it), shared playlists (all phone playlists are on the
+cloud), storage bar, Online/Offline. It talks to the API directly (`features/cloud/music-api.ts`). Not on the
+phone: the YouTube downloader and the separator; covers (the API has no cover endpoint yet).
+
+To confirm with LWS **before** designing (from the project brief): is streaming audio allowed on that hosting plan, how much storage, and can it run Node at all? (Bandwidth: unlimited, confirmed 2026-11-24.) Classic shared hosting often only runs PHP; if so we need either a PHP port of the small API or a cheap VPS.
 
 Design that keeps the app independent of LWS:
 - The player only needs a "library source": list songs, stream URL (HTTP Range), cover. The local server already has exactly this API, so a remote server is the **same API on another address**. A setting chooses local folder or remote server.
@@ -44,10 +56,24 @@ Design that keeps the app independent of LWS:
 Technology: wrap the existing Angular app with **Capacitor**. Most UI and logic is reused; native parts are added as plugins.
 
 Native work that does not exist in the web app:
-- Playback that **continues when the screen turns off** (foreground service + media notification; a plain web view gets suspended).
-- **Phone calls and other apps**: audio focus (pause on call, resume after, lower volume for a notification), pause when headphones are unplugged.
-- Lock-screen / Bluetooth / headset buttons (we already have Media Session handlers; needs the native side).
-- Offline storage in the app's own folder, free-space handling, battery optimisation exceptions.
+- **Playback runs in Android, not in the WebView** (done 2026-11-24): `MusicService.java` (Media3, a
+  MediaSessionService) plays the songs; the web player drives it through `NativePlayerPlugin.java` /
+  `core/native-audio.ts` and hands it the whole play order, so it moves on by itself. Checked on the Galaxy A16:
+  - the music goes on with the screen off and after the app is swiped away from the recent apps (like Deezer); opened
+    again, the app shows what plays and controls it;
+  - notification / lock screen / headset buttons (previous, play-pause, next);
+  - a call or the assistant pauses it and it plays on afterwards (Media3's audio focus); another music app stops it;
+  - unplugged headphones pause it (Media3; cannot be faked over USB, check by hand).
+  Why not the WebView: swiping the app away destroys its screen and the WebView with it (Capacitor destroys it).
+  LWS's edge cache hides file sizes and ignores "from byte N" ranges: the player assumes a constant bitrate to seek.
+- **Back button** (done 2026-11-24, `core/back-button.ts`): closes an open menu, then goes back a page; on the home
+  page it sends the app to the background (the music goes on) instead of closing it.
+- **Songs on the phone live in its Music folder** (done 2026-11-24, `MusicFolderPlugin.java`, Android's MediaStore):
+  cloud songs saved on the phone go to `Music/MuseHik/Artist - Title.mp3` (seen from a computer over the cable), and
+  every song copied into `Music` by cable shows in All tracks and plays (one "music and audio" permission). Songs
+  saved by older versions moved there by themselves. Not done yet: a song copied by cable that is also on the cloud
+  is not recognised as the same song (match by title and artist?); the app cannot rename or delete songs copied by
+  cable (Android asks for a confirmation per file: possible later). Still to do: free-space handling.
 - A mobile layout (the player bar already has a narrow layout; pages need a pass).
 
 Getting music onto the phone:
@@ -72,13 +98,12 @@ Getting music onto the phone:
 - **Remote server = metadata DB + files + a small API**, not "just a database": audio files live on the disk (100 GB plan), the DB (MySQL, or an SQLite file to keep her single MySQL DB free) only holds titles, owners, sizes. The local Node server's API (list, stream with Range, cover, upload, delete, quota) is the contract; the remote is a second implementation of it. Preferred remote: **PHP** (always available on shared hosting) with files served by Apache; Node on her plan is unconfirmed.
 - **Quotas, enforced on the server (not only in the app):**
   - storage cap for the app (suggestion: 30 GB, about 6000 songs; she decides), per-user usage tracked;
-  - monthly bandwidth budget for the app: she has 25 GB/month, her other sites use up to 5 GB, so budget about 15 GB for MuseHik and keep a margin; the server counts bytes it serves/receives per month and refuses past the limit;
   - before every upload the app asks the server for the remaining quota and refuses if the file does not fit; before every download to a laptop it checks local free disk space.
-  - Streaming everything every time would eat the budget (about 85 MB per hour of music at 192 kbps), so devices keep a **local cache**: a song crosses the network once per device.
-- **Open check on her hosting plan:** whether her plan has "Setup Node.js App" in cPanel or SSH, what "1 Go" in the offer means, and whether bandwidth is really capped at 25 GB or "unlimited with fair use". LWS's own terms on hosting large audio files have to be read or asked to support.
+  - Bandwidth is **unlimited** on her plan (confirmed 2026-11-24): no monthly cap. Devices still keep a **local cache** so songs play offline and start fast.
+- **Open check on her hosting plan:** whether her plan has "Setup Node.js App" in cPanel or SSH, and what "1 Go" in the offer means. LWS's own terms on hosting large audio files have to be read or asked to support.
 
 ## Open questions
 
 - What are the exact numbers on her LWS offer page (screenshot)?
-- Storage cap and monthly bandwidth budget for the app?
+- Storage cap for the app?
 - Who may delete a song on the shared remote: only its uploader, or both?

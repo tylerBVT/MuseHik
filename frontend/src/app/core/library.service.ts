@@ -1,7 +1,8 @@
 import { Injectable, signal } from '@angular/core';
 import { API, Track } from './api';
+import { phoneCloud } from '../features/cloud/phone';
 
-/** The song list from the server's SQLite library index. */
+/** The song list: the server's SQLite library index on a laptop; on the phone, the songs in its Music folder. */
 @Injectable({ providedIn: 'root' })
 export class LibraryService {
   readonly tracks = signal<Track[]>([]);
@@ -9,7 +10,20 @@ export class LibraryService {
   /** Set when the server cannot be reached, so the page can say so instead of showing an empty library. */
   readonly error = signal<string | null>(null);
 
+  constructor() {
+    if (phoneCloud) phoneCloud.onSavedChange = () => void this.load();
+  }
+
   async load(): Promise<void> {
+    if (phoneCloud) {
+      this.loading.set(true);
+      try {
+        this.tracks.set(await phoneCloud.phoneTracks());
+      } finally {
+        this.loading.set(false);
+      }
+      return;
+    }
     this.loading.set(true);
     try {
       const response = await fetch(`${API}/library`);
@@ -30,9 +44,10 @@ export class LibraryService {
     return track;
   }
 
-  /** Song menu: the file goes to the Recycle Bin. */
+  /** Song menu: the file goes to the Recycle Bin (phone: deleted from the phone; a cloud song stays on the cloud). */
   async remove(id: number): Promise<void> {
-    await send('DELETE', `/library/${id}`);
+    if (phoneCloud) await (id < 0 ? phoneCloud.removeFromPhone(-id) : phoneCloud.deleteFromPhone(id));
+    else await send('DELETE', `/library/${id}`);
     this.tracks.update((list) => list.filter((t) => t.id !== id));
   }
 }

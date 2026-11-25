@@ -22,7 +22,7 @@ import { saveReport } from './report.mjs';
 import { updateAfterFailure, versions } from './updater.mjs';
 import { fileBase, sameIdentity, trackKey } from '../../core/lib.mjs';
 import { addFile, db, duplicateOfFile, findDuplicate } from '../../core/library.mjs';
-import { lastIndex, syncFolder, withCloud } from '../cloud/store.mjs';
+import { lastIndex, withCloud } from '../cloud/store.mjs';
 import { queueUpload } from '../cloud/upload.mjs';
 
 const MAX_TRACKS = 10000; // a safety net only: Deezer playlists hold at most 10,000 songs
@@ -330,7 +330,7 @@ async function processJob(job, signal) {
 /** The cloud's songs, read when a "Download to cloud" starts (the last list seen if the cloud does not answer). */
 async function cloudSongs() {
   try {
-    return await withCloud(async cloud => { await syncFolder(cloud); return (await cloud.index()).songs; });
+    return await withCloud(async cloud => (await cloud.index()).songs);
   } catch {
     return lastIndex()?.songs ?? [];
   }

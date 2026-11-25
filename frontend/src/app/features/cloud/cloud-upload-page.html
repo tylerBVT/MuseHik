@@ -56,17 +56,43 @@
   </section>
 }
 
+@if (!isPhone) {
 <div class="tabs" role="tablist" aria-label="What to upload">
   <button type="button" role="tab" class="tab" [class.on]="tab() === 'songs'" [attr.aria-selected]="tab() === 'songs'" (click)="setTab('songs')">Songs</button>
   <button type="button" role="tab" class="tab" [class.on]="tab() === 'playlist'" [attr.aria-selected]="tab() === 'playlist'" (click)="setTab('playlist')">Playlist</button>
   <button type="button" role="tab" class="tab" [class.on]="tab() === 'folder'" [attr.aria-selected]="tab() === 'folder'" (click)="setTab('folder')">Folder</button>
 </div>
+}
 
 @if (error(); as message) {
   <p class="error" role="alert">{{ message }}</p>
 }
 
 @switch (tab()) {
+  @case ('phone') {
+    <div class="tools">
+      <label class="action">
+        Choose songs...
+        <input type="file" multiple accept="audio/*,.mp3,.m4a,.opus,.ogg,.flac,.wav" hidden (change)="addPhoneFiles($event)" />
+      </label>
+    </div>
+    <ul class="songs">
+      @for (row of phoneRows(); track row.key) {
+        <li>
+          <label class="song" [class.on]="pickedPaths().has(row.key)">
+            <input type="checkbox" [checked]="pickedPaths().has(row.key)" (change)="togglePath(row.key)" />
+            <span class="meta">
+              <span class="title">{{ row.title }}</span>
+              <span class="artist">{{ row.artist || 'Unknown artist' }}</span>
+            </span>
+            <span class="size">{{ size(row.size) }}</span>
+          </label>
+        </li>
+      } @empty {
+        <li class="none">Choose songs on this phone to send them to the cloud. Their tags are read before sending.</li>
+      }
+    </ul>
+  }
   @case ('songs') {
     <div class="tools">
       <input

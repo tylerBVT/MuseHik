@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { LibraryService } from '../../../core/library.service';
 import { NavService } from '../../../core/nav.service';
+import { hasServer } from '../../../core/platform';
 import { CloudService, CloudSong } from '../../cloud/cloud.service';
 import { PlaylistService, PlaylistSong, SongRef } from '../playlist.service';
 import { PageHeader } from '../../../shared/page-header';
@@ -36,12 +37,13 @@ export class PlaylistEditor implements OnInit {
   /** Songs of the playlist being edited that are neither in the library nor on the cloud: kept unless unticked. */
   private readonly kept = signal<Row[]>([]);
 
+  // On the phone every song of a playlist is a cloud song (its "library" is only cloud songs saved on it).
   private readonly rows = computed<Row[]>(() => [
-    ...this.library.tracks().map((t) => ({
+    ...(hasServer ? this.library.tracks() : []).map((t) => ({
       key: `t:${t.id}`, title: t.title, artist: t.artist, album: t.album, tag: '' as const, ref: { trackId: t.id },
     })),
     ...this.cloudSongs()
-      .filter((s) => !s.inLibrary)
+      .filter((s) => !hasServer || !s.inLibrary)
       .map((s) => ({
         key: `c:${s.id}`, title: s.title, artist: s.artist, album: s.album, tag: 'cloud' as const, ref: { cloudId: s.id },
       })),

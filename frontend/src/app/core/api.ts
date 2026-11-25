@@ -15,7 +15,7 @@ export type Track = {
   size?: number;
   /** From the song menu (the file's genre tag, or the cloud list's). */
   genre?: string;
-  /** Cloud songs only: where to stream, show the cover and fetch in advance (library songs use their id). */
+  /** Cloud songs only: where to stream, show the cover ('' = none, on the phone) and fetch in advance (library songs use their id). */
   stream?: string;
   cover?: string;
   prefetch?: string;
@@ -24,6 +24,14 @@ export type Track = {
   /** ISO date: library songs, when the file appeared on this laptop (downloaded); cloud songs, when uploaded. */
   addedAt?: string | null;
 };
+
+type CloudTrackInput = { id: number; title: string; artist: string; album: string; duration: number; addedAt?: string; genre?: string };
+
+/** On the phone, cloud songs play from the phone or straight from the cloud (set by features/cloud/phone/). */
+let phoneTrack: ((song: CloudTrackInput) => Track) | null = null;
+export function usePhoneTracks(make: (song: CloudTrackInput) => Track): void {
+  phoneTrack = make;
+}
 
 /** A cloud song as a player track. Negative ids never clash with library ids. */
 export function cloudTrack(song: {
@@ -35,6 +43,7 @@ export function cloudTrack(song: {
   addedAt?: string;
   genre?: string;
 }): Track {
+  if (phoneTrack) return phoneTrack(song);
   const base = `${API}/cloud/songs/${song.id}`;
   return {
     id: -song.id,

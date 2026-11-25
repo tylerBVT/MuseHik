@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Track } from '../../core/api';
-import { AUDIO_FACTORY, PlayerService } from './player.service';
+import { AUDIO_FACTORY, PlayerService, type PlanItem, type NativeState } from './player.service';
+import type { RepeatMode } from './queue';
 
 /** Stands in for HTMLAudioElement: records what the player asks for and lets a test "finish" a song. */
 class FakeAudio extends EventTarget {
@@ -11,10 +12,19 @@ class FakeAudio extends EventTarget {
   duration = NaN;
   paused = true;
   playCalls = 0;
+  /** Set to make the next play() fail like the browser does: the load fails ('error' event) or it is not allowed. */
+  failNextPlay: 'load' | 'not-allowed' | null = null;
 
   play(): Promise<void> {
-    this.paused = false;
     this.playCalls++;
+    const failure = this.failNextPlay;
+    this.failNextPlay = null;
+    if (failure === 'load') {
+      this.dispatchEvent(new Event('error'));
+      return Promise.reject(new DOMException('Failed to load because no supported source was found.', 'NotSupportedError'));
+    }
+    if (failure === 'not-allowed') return Promise.reject(new DOMException('play() needs a user gesture', 'NotAllowedError'));
+    this.paused = false;
     this.dispatchEvent(new Event('play'));
     return Promise.resolve();
   }
@@ -27,6 +37,22 @@ class FakeAudio extends EventTarget {
   /** The current song reaches its end. */
   finish(): void {
     this.dispatchEvent(new Event('ended'));
+  }
+}
+
+/** The phone's audio: Android's own player gets the whole play order, so it plays on without the app's screen. */
+class PlanAudio extends FakeAudio {
+  plans: { items: PlanItem[]; index: number; repeat: RepeatMode; context: string }[] = [];
+  saved: NativeState | null = null;
+  setPlan(items: PlanItem[], index: number, repeat: RepeatMode, context: string): void {
+    this.plans.push({ items, index, repeat, context });
+  }
+  restore(): Promise<NativeState | null> {
+    return Promise.resolve(this.saved);
+  }
+  /** Android moved to another song by itself (Next on the notification or a headset). */
+  moveTo(index: number): void {
+    this.dispatchEvent(new CustomEvent('itemchange', { detail: { index } }));
   }
 }
 
@@ -50,7 +76,106 @@ describe('PlayerService', () => {
     player = TestBed.inject(PlayerService);
   });
 
+  const settle = () => new Promise((r) => setTimeout(r, 0));
   const title = () => player.current()?.title;
+
+  describe('when a song cannot play', () => {
+    it('a cloud song that cannot be loaded says so, not "blocked"', async () => {
+      const cloudSong = { ...songs[0], id: -1, stream: 'https://cloud.example/songs/1/file' };
+      audio.failNextPlay = 'load';
+      player.play(cloudSong, [cloudSong]);
+      await settle();
+      expect(player.error()).toBe('This song could not be loaded from the cloud. Check the internet connection.');
+    });
+
+    it('a library song that cannot be loaded says it could not be played', async () => {
+      audio.failNextPlay = 'load';
+      player.play(songs[0], songs);
+      await settle();
+      expect(player.error()).toBe('This track could not be played.');
+    });
+
+    it('only a real refusal by the device says "blocked"', async () => {
+      audio.failNextPlay = 'not-allowed';
+      player.play(songs[0], songs);
+      await settle();
+      expect(player.error()).toBe('Playback was blocked. Press play to start it.');
+    });
+  });
+
+  describe('on the phone (Android plays the songs, the app follows)', () => {
+    let native: PlanAudio;
+    const startWith = (saved: NativeState | null = null) => {
+      native = new PlanAudio();
+      native.saved = saved;
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [{ provide: AUDIO_FACTORY, useValue: () => native as unknown as HTMLAudioElement }],
+      });
+      player = TestBed.inject(PlayerService);
+    };
+    const urls = (items: PlanItem[]) => items.map((i) => i.url);
+    const withStreams = songs.map((s) => ({ ...s, stream: `https://cloud.example/songs/${s.id}/file` }));
+
+    it('hands Android the whole play order, where to start and the repeat mode', () => {
+      startWith();
+      player.play(withStreams[2], withStreams);
+      const plan = native.plans.at(-1)!;
+      expect(urls(plan.items)).toEqual(withStreams.map((s) => s.stream));
+      expect(plan.items[0]).toEqual({ url: withStreams[0].stream, title: 'Song 1', artist: 'Artist', album: 'Album', duration: 200 });
+      expect(plan.index).toBe(2);
+      expect(plan.repeat).toBe('off');
+      expect(native.src).toBe(withStreams[2].stream);
+    });
+
+    it('the shuffled order and a new repeat mode are handed over at once', () => {
+      startWith();
+      player.play(withStreams[0], withStreams);
+      player.toggleShuffle();
+      let plan = native.plans.at(-1)!;
+      expect(plan.index).toBe(0);
+      expect(plan.items[0].url).toBe(withStreams[0].stream); // the song playing stays first
+      expect(new Set(urls(plan.items))).toEqual(new Set(withStreams.map((s) => s.stream)));
+      player.cycleRepeat();
+      plan = native.plans.at(-1)!;
+      expect(plan.repeat).toBe('all');
+    });
+
+    it('follows when Android moves to another song by itself', () => {
+      startWith();
+      player.play(withStreams[0], withStreams);
+      const srcBefore = native.src;
+      native.moveTo(3);
+      expect(player.current()?.title).toBe('Song 4');
+      expect(player.position()).toBe(0);
+      expect(native.src).toBe(srcBefore); // nothing is loaded again: Android already plays it
+    });
+
+    it('reopened while Android still plays: takes over its queue, song, position and settings', async () => {
+      startWith();
+      player.play(withStreams[1], withStreams);
+      player.toggleShuffle();
+      player.cycleRepeat();
+      const context = native.plans.at(-1)!.context;
+      startWith({ context, index: 2, playing: true, position: 61, duration: 200 });
+      await new Promise((r) => setTimeout(r, 0));
+      const order = JSON.parse(context).order as number[];
+      expect(player.queue().map((t) => t.title)).toEqual(withStreams.map((t) => t.title));
+      expect(player.current()?.title).toBe(withStreams[order[2]].title);
+      expect(player.playing()).toBe(true);
+      expect(player.position()).toBe(61);
+      expect(player.shuffle()).toBe(true);
+      expect(player.repeat()).toBe('all');
+      player.next(); // and carries on from there
+      expect(player.current()?.title).toBe(withStreams[order[3]].title);
+    });
+
+    it('nothing playing on Android when the app opens: starts empty', async () => {
+      startWith(null);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(player.current()).toBeNull();
+    });
+  });
 
   describe('playing and auto-advance', () => {
     it('plays the clicked song from the queue', () => {

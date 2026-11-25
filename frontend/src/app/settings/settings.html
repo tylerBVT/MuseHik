@@ -1,81 +1,119 @@
 <app-page-header title="Settings" />
 
-<section class="group" aria-labelledby="profile">
-  <h2 id="profile">Who uses this laptop?</h2>
-  <div class="row">
-    <div>
-      <div class="label">Profile</div>
-      <div class="hint">MuttMutt hides the AI tools (instrumental separator).</div>
-    </div>
-    <div class="choices" role="radiogroup" aria-label="Who uses this laptop">
-      @for (p of profiles; track p.value) {
-        <button
-          type="button"
-          class="choice"
-          role="radio"
-          [class.on]="app.info()?.profile === p.value"
-          [attr.aria-checked]="app.info()?.profile === p.value"
-          (click)="setProfile(p.value)"
-        >
-          {{ p.label }}
-        </button>
-      }
-    </div>
-  </div>
-  @if (profileError()) {
-    <p class="error">{{ profileError() }}</p>
-  }
-</section>
-
-<section class="group" aria-labelledby="music-folder">
-  <h2 id="music-folder">Music folder</h2>
-  @if (app.info(); as info) {
-    <div class="row music-folder">
-      <div>
-        <div class="label path">{{ info.musicDir }}</div>
-        <div class="hint">{{ info.songs }} {{ info.songs === 1 ? 'song' : 'songs' }}</div>
-      </div>
-      <div class="actions">
-        <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="pickMusicFolder()">Change...</button>
-      </div>
-    </div>
-    @if (pickedFolder(); as picked) {
-      <div class="confirm">
-        <p>New music folder: <strong class="path">{{ picked }}</strong></p>
-        <div class="actions">
-          <button type="button" class="action" [disabled]="folderBusy()" (click)="useMusicFolder(true)">
-            {{ folderBusy() ? 'Moving...' : 'Move my ' + info.songs + ' songs there' }}
-          </button>
-          <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="useMusicFolder(false)">
-            Use this folder as it is
-          </button>
-          <button type="button" class="action secondary" [disabled]="folderBusy()" (click)="pickedFolder.set(null)">Cancel</button>
-        </div>
-      </div>
-    }
-  }
-  @if (folderResult(); as r) {
-    <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
-  }
-</section>
-
-@if (app.info()?.installed) {
-  <section class="group" aria-labelledby="about">
-    <h2 id="about">About MuseHik</h2>
+<!-- Server-only sections (profile, music folder, version, yt-dlp, cloud): hidden on the phone. -->
+@if (hasServer) {
+  <section class="group" aria-labelledby="profile">
+    <h2 id="profile">Who uses this laptop?</h2>
     <div class="row">
       <div>
-        <div class="label">Version {{ app.info()?.version }}</div>
-        <div class="hint">{{ updateText() || 'MuseHik checks for a new version when it starts and every few hours.' }}</div>
+        <div class="label">Profile</div>
+        <div class="hint">MuttMutt hides the AI tools (instrumental separator).</div>
       </div>
-      @if (isDesktop) {
+      <div class="choices" role="radiogroup" aria-label="Who uses this laptop">
+        @for (p of profiles; track p.value) {
+          <button
+            type="button"
+            class="choice"
+            role="radio"
+            [class.on]="app.info()?.profile === p.value"
+            [attr.aria-checked]="app.info()?.profile === p.value"
+            (click)="setProfile(p.value)"
+          >
+            {{ p.label }}
+          </button>
+        }
+      </div>
+    </div>
+    @if (profileError()) {
+      <p class="error">{{ profileError() }}</p>
+    }
+  </section>
+
+  <section class="group" aria-labelledby="music-folder">
+    <h2 id="music-folder">Music folder</h2>
+    @if (app.info(); as info) {
+      <div class="row music-folder">
+        <div>
+          <div class="label path">{{ info.musicDir }}</div>
+          <div class="hint">{{ info.songs }} {{ info.songs === 1 ? 'song' : 'songs' }}</div>
+        </div>
         <div class="actions">
-          <button type="button" class="action secondary" [disabled]="updateChecking()" (click)="checkForUpdates()">
-            {{ updateChecking() ? 'Checking...' : 'Check for updates' }}
+          <button
+            type="button"
+            class="action secondary"
+            [disabled]="folderBusy()"
+            (click)="pickMusicFolder()"
+          >
+            Change...
           </button>
         </div>
+      </div>
+      @if (pickedFolder(); as picked) {
+        <div class="confirm">
+          <p>
+            New music folder: <strong class="path">{{ picked }}</strong>
+          </p>
+          <div class="actions">
+            <button
+              type="button"
+              class="action"
+              [disabled]="folderBusy()"
+              (click)="useMusicFolder(true)"
+            >
+              {{ folderBusy() ? 'Moving...' : 'Move my ' + info.songs + ' songs there' }}
+            </button>
+            <button
+              type="button"
+              class="action secondary"
+              [disabled]="folderBusy()"
+              (click)="useMusicFolder(false)"
+            >
+              Use this folder as it is
+            </button>
+            <button
+              type="button"
+              class="action secondary"
+              [disabled]="folderBusy()"
+              (click)="pickedFolder.set(null)"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       }
-    </div>
+    }
+    @if (folderResult(); as r) {
+      <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
+    }
   </section>
+
+  @if (app.info()?.installed) {
+    <section class="group" aria-labelledby="about">
+      <h2 id="about">About MuseHik</h2>
+      <div class="row">
+        <div>
+          <div class="label">Version {{ app.info()?.version }}</div>
+          <div class="hint">
+            {{
+              updateText() || 'MuseHik checks for a new version when it starts and every few hours.'
+            }}
+          </div>
+        </div>
+        @if (isDesktop) {
+          <div class="actions">
+            <button
+              type="button"
+              class="action secondary"
+              [disabled]="updateChecking()"
+              (click)="checkForUpdates()"
+            >
+              {{ updateChecking() ? 'Checking...' : 'Check for updates' }}
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+  }
 }
 
 <section class="group" aria-labelledby="appearance">
@@ -83,7 +121,7 @@
   <div class="row">
     <div>
       <div class="label">Theme</div>
-      <div class="hint">"System" follows your Windows setting.</div>
+      <div class="hint">"System" follows your {{ hasServer ? 'Windows' : 'phone' }} setting.</div>
     </div>
     <div class="choices" role="radiogroup" aria-label="Theme">
       @for (t of themes; track t.value) {
@@ -102,163 +140,172 @@
   </div>
 </section>
 
-<section class="group" aria-labelledby="engine">
-  <h2 id="engine">Downloader engine (yt-dlp)</h2>
-  <p class="hint intro">
-    MuseHik downloads with <strong>yt-dlp</strong>, an open-source program used exactly as its authors publish it.
-    YouTube changes often, so MuseHik checks for a new yt-dlp once a day, and right away when a download fails in
-    a way that usually means it needs an update.
-  </p>
+@if (hasServer) {
+  <section class="group" aria-labelledby="engine">
+    <h2 id="engine">Downloader engine (yt-dlp)</h2>
+    <p class="hint intro">
+      MuseHik downloads with <strong>yt-dlp</strong>, an open-source program used exactly as its
+      authors publish it. YouTube changes often, so MuseHik checks for a new yt-dlp once a day, and
+      right away when a download fails in a way that usually means it needs an update.
+    </p>
 
-  @if (engineError()) {
-    <p class="error">{{ engineError() }}</p>
-  }
-
-  @if (engine(); as e) {
-    <div class="row">
-      <div>
-        <div class="label">Installed version</div>
-        <div class="hint">
-          yt-dlp {{ e.ytdlp ?? 'not installed' }}
-          @if (e.ejs) { · challenge solver {{ e.ejs }} }
-        </div>
-      </div>
-      <div class="actions">
-        <button type="button" class="action" [disabled]="e.updating" (click)="updateNow()">
-          {{ e.updating ? 'Updating...' : 'Check for updates now' }}
-        </button>
-        @if (e.previousVersion) {
-          <button type="button" class="action secondary" [disabled]="e.updating" (click)="rollback()">
-            Go back to {{ e.previousVersion }}
-          </button>
-        }
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <div class="label">Last check</div>
-        <div class="hint" [class.bad]="e.lastResult && !e.lastResult.ok">
-          {{ when(e.lastCheck) }}
-          @if (e.lastResult) { ({{ e.lastResult.reason }}): {{ e.lastResult.message }} }
-        </div>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <div class="label">Update channel</div>
-        <div class="hint">
-          "Nightly" gets YouTube fixes days earlier but is less tested. Even on "Stable", MuseHik tries the nightly
-          build when a download breaks and stable has no fix yet.
-        </div>
-      </div>
-      <div class="choices" role="radiogroup" aria-label="Update channel">
-        @for (c of channels; track c.value) {
-          <button
-            type="button"
-            class="choice"
-            role="radio"
-            [class.on]="e.channel === c.value"
-            [attr.aria-checked]="e.channel === c.value"
-            [disabled]="e.updating"
-            (click)="setChannel(c.value)"
-          >
-            {{ c.label }}
-          </button>
-        }
-      </div>
-    </div>
-
-    @if (e.youtubeBlockedUntil) {
-      <p class="error">
-        YouTube is currently blocking this computer. MuseHik will not ask it anything until
-        {{ when(e.youtubeBlockedUntil) }}.
-      </p>
+    @if (engineError()) {
+      <p class="error">{{ engineError() }}</p>
     }
-  }
-</section>
+
+    @if (engine(); as e) {
+      <div class="row">
+        <div>
+          <div class="label">Installed version</div>
+          <div class="hint">
+            yt-dlp {{ e.ytdlp ?? 'not installed' }}
+            @if (e.ejs) {
+              · challenge solver {{ e.ejs }}
+            }
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" class="action" [disabled]="e.updating" (click)="updateNow()">
+            {{ e.updating ? 'Updating...' : 'Check for updates now' }}
+          </button>
+          @if (e.previousVersion) {
+            <button
+              type="button"
+              class="action secondary"
+              [disabled]="e.updating"
+              (click)="rollback()"
+            >
+              Go back to {{ e.previousVersion }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <div class="label">Last check</div>
+          <div class="hint" [class.bad]="e.lastResult && !e.lastResult.ok">
+            {{ when(e.lastCheck) }}
+            @if (e.lastResult) {
+              ({{ e.lastResult.reason }}): {{ e.lastResult.message }}
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <div class="label">Update channel</div>
+          <div class="hint">
+            "Nightly" gets YouTube fixes days earlier but is less tested. Even on "Stable", MuseHik
+            tries the nightly build when a download breaks and stable has no fix yet.
+          </div>
+        </div>
+        <div class="choices" role="radiogroup" aria-label="Update channel">
+          @for (c of channels; track c.value) {
+            <button
+              type="button"
+              class="choice"
+              role="radio"
+              [class.on]="e.channel === c.value"
+              [attr.aria-checked]="e.channel === c.value"
+              [disabled]="e.updating"
+              (click)="setChannel(c.value)"
+            >
+              {{ c.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (e.youtubeBlockedUntil) {
+        <p class="error">
+          YouTube is currently blocking this computer. MuseHik will not ask it anything until
+          {{ when(e.youtubeBlockedUntil) }}.
+        </p>
+      }
+    }
+  </section>
+}
 
 <section class="group" aria-labelledby="cloud">
-  <h2 id="cloud">Cloud (FTP)</h2>
-  <p class="hint intro">
-    Songs uploaded here can be played from any laptop running MuseHik. Use an FTP account that can only see the
-    music folder (you can create one in the LWS panel), not the main login of the hosting: the hosting also holds
-    websites. These details stay on this laptop.
-  </p>
-  @if (cloudForm(); as f) {
-    <label class="check online">
-      <input
-        type="checkbox"
-        role="switch"
-        [checked]="f.online"
-        [disabled]="cloudBusy()"
-        (change)="setOnline($any($event.target).checked)"
-      />
-      <span>
-        <strong>Use the cloud on this laptop</strong>
-        <span class="hint">{{ f.online ? 'Online.' : 'Offline: this laptop never connects. Songs already on it still play.' }}</span>
-      </span>
-    </label>
-    <div class="form">
-      <label class="field">
-        <span class="label">Host</span>
-        <input type="text" autocomplete="off" placeholder="ftp.example.com" [value]="f.host" (input)="setCloud('host', $any($event.target).value)" />
-      </label>
-      <label class="field small">
-        <span class="label">Port</span>
-        <input type="number" min="1" [value]="f.port" (input)="setCloud('port', +$any($event.target).value)" />
-      </label>
-      <label class="field">
-        <span class="label">User</span>
-        <input type="text" autocomplete="off" [value]="f.user" (input)="setCloud('user', $any($event.target).value)" />
-      </label>
-      <label class="field">
-        <span class="label">Password</span>
+    <h2 id="cloud">Cloud</h2>
+    <p class="hint intro">
+      Songs uploaded here can be played from any laptop running MuseHik, and from the phone. The cloud is
+      the music API on the hosting: its address and its key (from config.php on the hosting). These details
+      stay on this {{ device }}.
+    </p>
+    @if (cloudForm(); as f) {
+      <label class="check online">
         <input
-          type="password"
-          autocomplete="new-password"
-          [placeholder]="f.hasPassword ? 'Saved (type to change it)' : ''"
-          [value]="cloudPassword()"
-          (input)="cloudPassword.set($any($event.target).value)"
+          type="checkbox"
+          role="switch"
+          [checked]="f.online"
+          [disabled]="cloudBusy()"
+          (change)="setOnline($any($event.target).checked)"
         />
+        <span>
+          <strong>Use the cloud on this {{ device }}</strong>
+          <span class="hint">{{
+            f.online
+              ? 'Online.'
+              : 'Offline: this ' + device + ' never connects. Songs already on it still play.'
+          }}</span>
+        </span>
       </label>
-      <label class="field">
-        <span class="label">Your name</span>
-        <input
-          type="text"
-          autocomplete="off"
-          maxlength="40"
-          [placeholder]="f.displayName"
-          [value]="f.name"
-          (input)="setCloud('name', $any($event.target).value)"
-        />
-        <span class="hint">Shown on the playlists you share.</span>
-      </label>
-      <label class="field">
-        <span class="label">Folder</span>
-        <input type="text" autocomplete="off" [value]="f.folder" (input)="setCloud('folder', $any($event.target).value)" />
-      </label>
-      <label class="field small">
-        <span class="label">Storage limit (GB)</span>
-        <input type="number" min="0.1" step="1" [value]="f.storageLimitGB" (input)="setCloud('storageLimitGB', +$any($event.target).value)" />
-      </label>
-      <label class="field small">
-        <span class="label">Cache on this laptop (GB)</span>
-        <input type="number" min="0.1" step="0.5" [value]="f.cacheLimitGB" (input)="setCloud('cacheLimitGB', +$any($event.target).value)" />
-      </label>
-    </div>
-    <label class="check">
-      <input type="checkbox" [checked]="f.allowPlainFtp" (change)="setCloud('allowPlainFtp', $any($event.target).checked)" />
-      Allow unencrypted FTP (only if the server does not support FTPS)
-    </label>
-    <div class="actions">
-      <button type="button" class="action" [disabled]="cloudBusy()" (click)="saveAndTestCloud()">
-        {{ cloudBusy() ? 'Connecting...' : 'Save and test connection' }}
-      </button>
-    </div>
-  }
-  @if (cloudResult(); as r) {
-    <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
-  }
+      <div class="form">
+        <label class="field wide">
+          <span class="label">Address</span>
+          <input
+            type="url"
+            autocomplete="off"
+            placeholder="https://www.example.com/music-api"
+            [value]="f.url"
+            (input)="setCloud('url', $any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span class="label">Key</span>
+          <input
+            type="password"
+            autocomplete="new-password"
+            [placeholder]="f.hasKey ? 'Saved (type to change it)' : ''"
+            [value]="cloudKey()"
+            (input)="cloudKey.set($any($event.target).value)"
+          />
+        </label>
+        <label class="field">
+          <span class="label">Your name</span>
+          <input
+            type="text"
+            autocomplete="off"
+            maxlength="40"
+            [placeholder]="f.displayName"
+            [value]="f.name"
+            (input)="setCloud('name', $any($event.target).value)"
+          />
+          <span class="hint">Shown on the playlists you share.</span>
+        </label>
+        @if (hasServer) {
+        <label class="field small">
+          <span class="label">Cache on this laptop (GB)</span>
+          <input
+            type="number"
+            min="0.1"
+            step="0.5"
+            [value]="f.cacheLimitGB"
+            (input)="setCloud('cacheLimitGB', +$any($event.target).value)"
+          />
+        </label>
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="action" [disabled]="cloudBusy()" (click)="saveAndTestCloud()">
+          {{ cloudBusy() ? 'Connecting...' : 'Save and test connection' }}
+        </button>
+      </div>
+    }
+    @if (cloudResult(); as r) {
+      <p [class.error]="!r.ok" [class.ok]="r.ok" role="status">{{ r.text }}</p>
+    }
 </section>

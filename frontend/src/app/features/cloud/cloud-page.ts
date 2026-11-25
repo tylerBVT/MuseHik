@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { NavService } from '../../core/nav.service';
+import { deviceName } from '../../core/platform';
 import { PageHeader } from '../../shared/page-header';
 import { LibraryList } from '../musicPlayer/library-list/library-list';
 import { CloudService, CloudSong, formatSize } from './cloud.service';
@@ -99,11 +100,11 @@ import { CloudUsage } from './usage-bar';
     }
     @if (switchedOff()) {
       <p class="notice">
-        The cloud is offline on this laptop: this is the last list it saw. Songs already on this laptop still play.
+        The cloud is offline on this {{ device }}: this is the last list it saw. Songs already on this {{ device }} still play.
         <button type="button" class="link" (click)="nav.go({ page: 'settings' })">Turn it on in Settings</button>
       </p>
     } @else if (offline()) {
-      <p class="notice">The cloud cannot be reached right now. Showing the last known list: songs on this laptop still play.</p>
+      <p class="notice">The cloud cannot be reached right now. Showing the last known list: songs on this {{ device }} still play.</p>
     }
 
     @if (removing()) {
@@ -156,6 +157,7 @@ export class CloudPage implements OnInit {
   protected readonly confirming = signal(false);
   protected readonly busy = signal(false);
   protected readonly size = formatSize;
+  protected readonly device = deviceName;
 
   protected readonly tracks = computed(() => this.songs().map((s) => this.cloud.toTrack(s)));
   protected readonly onLaptop = computed(() => new Set(this.songs().filter((s) => s.onLaptop).map((s) => -s.id)));

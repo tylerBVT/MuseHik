@@ -1,12 +1,13 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { LibraryService } from '../../core/library.service';
 import { NavService } from '../../core/nav.service';
+import { deviceName, isPhone } from '../../core/platform';
 import { PageHeader } from '../../shared/page-header';
 import { CloudService, CloudSong, SaveJob, formatSize } from './cloud.service';
 
 const POLL_MS = 700;
 
-/** "Download from cloud": tick cloud songs, they are copied into this laptop's music folder (and library). */
+/** "Download from cloud": tick cloud songs, they are copied into this laptop's music folder (and library); on the phone, saved on the phone (they play without the network). */
 @Component({
   imports: [PageHeader],
   selector: 'app-cloud-save-page',
@@ -153,16 +154,29 @@ const POLL_MS = 700;
   `,
   template: `
     <app-page-header title="Download from cloud" />
-    <p class="help">
-      Tick cloud songs to copy them into your music folder. They then play without the internet, like any downloaded
-      song. Songs already in your library are not listed.
-    </p>
+    @if (isPhone) {
+      <p class="help">
+        Tick cloud songs to save them on this phone. They then play without the internet and show in All tracks.
+        Songs already on this phone are not listed.
+      </p>
+    } @else {
+      <p class="help">
+        Tick cloud songs to copy them into your music folder. They then play without the internet, like any downloaded
+        song. Songs already in your library are not listed.
+      </p>
+    }
     @if (switchedOff()) {
       <p class="notice">
-        The cloud is offline on this laptop: only songs already played here (kept in the cache) can be saved.
+        @if (isPhone) {
+          The cloud is off on this phone: songs cannot be saved until it is on again (Settings).
+        } @else {
+          The cloud is offline on this laptop: only songs already played here (kept in the cache) can be saved.
+        }
       </p>
     } @else if (offline()) {
-      <p class="notice">The cloud cannot be reached right now: only songs already played here can be saved.</p>
+      <p class="notice">
+        The cloud cannot be reached right now{{ isPhone ? ': try again with a connection.' : ': only songs already played here can be saved.' }}
+      </p>
     }
     @if (error(); as message) {
       <p class="error" role="alert">{{ message }}</p>
@@ -172,8 +186,8 @@ const POLL_MS = 700;
       <section class="progress" aria-live="polite">
         <strong>
           @switch (j.state) {
-            @case ('running') { Saving to this laptop... }
-            @case ('done') { Saved to this laptop }
+            @case ('running') { Saving to this {{ device }}... }
+            @case ('done') { Saved to this {{ device }} }
             @case ('stopped') { Stopped }
             @case ('failed') { Could not save }
           }
@@ -256,7 +270,7 @@ const POLL_MS = 700;
       <footer class="send">
         <strong>{{ picked().size }} {{ picked().size === 1 ? 'song' : 'songs' }}, {{ size(pickedBytes()) }}</strong>
         <button type="button" class="action primary" [disabled]="!picked().size || running()" (click)="save()">
-          Save {{ picked().size || '' }} to this laptop
+          Save {{ picked().size || '' }} to this {{ device }}
         </button>
       </footer>
     }
@@ -276,6 +290,8 @@ export class CloudSavePage implements OnInit, OnDestroy {
   protected readonly picked = signal<ReadonlySet<number>>(new Set());
   protected readonly job = signal<SaveJob | null>(null);
   protected readonly size = formatSize;
+  protected readonly device = deviceName;
+  protected readonly isPhone = isPhone;
   private polling?: ReturnType<typeof setTimeout>;
 
   /** Cloud songs this laptop's library does not have. */

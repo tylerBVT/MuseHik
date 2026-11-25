@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 // A laptop set up for the cloud but switched to Offline: nothing may connect.
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-offline-'));
@@ -18,11 +18,11 @@ const { withCloud } = await import('../modules/cloud/store.mjs');
 const { syncPlaylists } = await import('../modules/cloud/playlistSync.mjs');
 const { createPlaylist } = await import('../modules/musicPlayer/playlists.mjs');
 
-let ftp, base;
+let remote, base;
 before(async () => {
-  ftp = await startFtp();
-  const { host, port, user, password, allowPlainFtp } = ftp.settings;
-  saveSettings({ host, port, user, password, allowPlainFtp, online: false });
+  remote = await startCloud();
+  
+  saveSettings({ ...remote.settings, online: false });
   // What this laptop saw the last time it was online.
   writeFileSync(join(tmp, 'cloud-library.json'), JSON.stringify({
     version: 1, nextId: 2, songs: [{ id: 1, file: 'A - B.mp3', title: 'B', artist: 'A', album: '', duration: 100, size: 10 }],
@@ -30,7 +30,7 @@ before(async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${server.address().port}/api`;
 });
-after(async () => { server.close(); await ftp.close(); });
+after(async () => { server.close(); await remote.close(); });
 
 const api = async (path, init = {}) => {
   const response = await fetch(`${base}${path}`, {
@@ -44,12 +44,12 @@ test('the online switch is saved, on by default', () => {
   assert.equal(loadSettings().online, false);
   assert.equal(isOnline(loadSettings()), false);
   assert.equal(isOnline({ ...loadSettings(), online: true }), true);
-  assert.equal(isOnline({ ...loadSettings(), online: true, password: '' }), false, 'not set up = not online');
+  assert.equal(isOnline({ ...loadSettings(), online: true, key: '' }), false, 'not set up = not online');
 });
 
 test('offline: withCloud refuses without connecting', async () => {
   await assert.rejects(withCloud(c => c.index()), /offline on this laptop/);
-  assert.equal(ftp.logins, 0);
+  assert.equal(remote.requests, 0);
 });
 
 test('offline: status, song list, sync and sharing never connect', async () => {
@@ -73,7 +73,7 @@ test('offline: status, song list, sync and sharing never connect', async () => {
 
   const download = await api('/download', { method: 'POST', body: { url: 'https://example.com/x', cloudOnly: true } });
   assert.equal(download.status, 400);
-  assert.equal(ftp.logins, 0, 'no connection at all');
+  assert.equal(remote.requests, 0, 'no connection at all');
 });
 
 test('the Test connection button still works offline (asked for by hand)', async () => {

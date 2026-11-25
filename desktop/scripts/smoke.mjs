@@ -21,7 +21,6 @@ const python = join(resources, 'python', 'python.exe');
 const ffmpeg = findFfmpeg(join(resources, 'python'));
 for (const [name, path] of [['node.exe', node], ['python.exe', python], ['backend/server.mjs', join(resources, 'backend', 'server.mjs')],
   ['backend/node_modules/music-metadata', join(resources, 'backend', 'node_modules', 'music-metadata')],
-  ['backend/node_modules/basic-ftp', join(resources, 'backend', 'node_modules', 'basic-ftp')],
   ['web/index.html', join(resources, 'web', 'index.html')], ['python/musehik-python.json', join(resources, 'python', 'musehik-python.json')]]) {
   check(`ships ${name}`, existsSync(path), path);
 }

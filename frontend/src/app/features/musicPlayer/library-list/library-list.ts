@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { Track, coverUrl, formatTime } from '../../../core/api';
 import { LibraryService } from '../../../core/library.service';
+import { deviceName } from '../../../core/platform';
 import { PlayerService } from '../player.service';
 import { SongMenu } from '../song-menu/song-menu';
 import { PERIODS, SORTS, Since, SortBy, arrange, formatDay, genresOf } from './arrange';
@@ -40,6 +41,7 @@ export class LibraryList {
   protected readonly formatTime = formatTime;
   protected readonly formatDay = formatDay;
   protected readonly coverUrl = coverUrl;
+  protected readonly device = deviceName;
   /** Ids whose cover failed to load (no embedded art), so a placeholder is shown instead. */
   protected readonly noCover = signal<ReadonlySet<number>>(new Set());
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startFtp } from './ftp-fixture.mjs';
+import { startCloud } from './cloud-fixture.mjs';
 
 // Throw-away database, music folder, settings and cache: the real ones are never touched.
 const tmp = mkdtempSync(join(tmpdir(), 'musehik-cache-'));
@@ -15,21 +15,27 @@ process.env.CLOUD_CACHE_DIR = join(tmp, 'cache');
 const { addFile } = await import('../core/library.mjs');
 const { cachedIds, evict, fetchSong, localSource, touch } = await import('../modules/cloud/cache.mjs');
 
-let ftp;
+let remote;
 before(async () => {
-  ftp = await startFtp();
-  mkdirSync(join(ftp.root, 'music', 'songs'), { recursive: true });
+  remote = await startCloud();
+  mkdirSync(join(remote.root, 'music', 'songs'), { recursive: true });
 });
-after(() => ftp.close());
+after(() => remote.close());
 
-/** Puts a song on the fake cloud and returns its index entry. */
+/** Puts a song on the cloud (its file and its entry in library.json) and returns the entry. */
 function cloudSong(id, title, size) {
   const file = `X - ${title}.mp3`;
-  writeFileSync(join(ftp.root, 'music', 'songs', file), Buffer.alloc(size, id));
-  return { id, file, title, artist: 'X', album: '', duration: 0, isrc: null, size };
+  writeFileSync(join(remote.cloudDir, 'songs', file), Buffer.alloc(size, id));
+  const song = { id, file, title, artist: 'X', album: '', duration: 0, isrc: null, key: `x|${title.toLowerCase()}`, size, addedBy: 'test', addedAt: '2026-01-01T00:00:00.000Z' };
+  const listFile = join(remote.cloudDir, 'library.json');
+  const index = existsSync(listFile) ? JSON.parse(readFileSync(listFile, 'utf8')) : { version: 1, nextId: 1, songs: [] };
+  index.songs = [...index.songs.filter(s => s.id !== id), song];
+  index.nextId = Math.max(index.nextId, id + 1);
+  writeFileSync(listFile, JSON.stringify(index));
+  return song;
 }
 /** How many times the server sent song files (JSON files not counted). */
-const songDownloads = () => ftp.reads.filter(name => /.mp3$/i.test(name)).length;
+const songDownloads = () => remote.reads.filter(name => /.mp3$/i.test(name)).length;
 
 test('prefers the local library copy', async () => {
   const path = join(tmp, 'music', 'Local Artist - Local Song.mp3');
@@ -41,27 +47,27 @@ test('prefers the local library copy', async () => {
 
 test('fetching a song that is in the local library downloads nothing', async () => {
   const song = { id: 98, file: 'X - Local Copy.mp3', title: 'Local Artist - Local Song', artist: '', duration: 0, size: 100 };
-  const logins = ftp.logins;
-  assert.equal(await fetchSong(song, ftp.settings), join(tmp, 'music', 'Local Artist - Local Song.mp3'));
-  assert.equal(ftp.logins, logins, 'no connection');
+  const logins = remote.requests;
+  assert.equal(await fetchSong(song, remote.settings), join(tmp, 'music', 'Local Artist - Local Song.mp3'));
+  assert.equal(remote.requests, logins, 'no connection');
   assert.equal(cachedIds().has(98), false);
 });
 
 test('fetches once and serves from cache after', async () => {
   const song = cloudSong(1, 'One', 5000);
   assert.equal(localSource(song), null);
-  const path = await fetchSong(song, ftp.settings);
+  const path = await fetchSong(song, remote.settings);
   assert.deepEqual(readFileSync(path), Buffer.alloc(5000, 1));
   assert.deepEqual(localSource(song), { path, from: 'cache' });
   assert.ok(cachedIds().has(1));
-  rmSync(join(ftp.root, 'music', 'songs', song.file)); // gone from the cloud: the cached copy still serves
-  assert.equal(await fetchSong(song, ftp.settings), path);
+  rmSync(join(remote.root, 'music', 'songs', song.file)); // gone from the cloud: the cached copy still serves
+  assert.equal(await fetchSong(song, remote.settings), path);
 });
 
 test('two concurrent fetches download once', async () => {
   const song = cloudSong(2, 'Two', 200000);
   const before = songDownloads();
-  const [a, b] = await Promise.all([fetchSong(song, ftp.settings), fetchSong(song, ftp.settings)]);
+  const [a, b] = await Promise.all([fetchSong(song, remote.settings), fetchSong(song, remote.settings)]);
   assert.equal(a, b);
   assert.equal(songDownloads() - before, 1);
   assert.equal(existsSync(`${a}.part`), false);
@@ -73,7 +79,7 @@ test('evicts least recently used, keeps the newest', async () => {
   const s5 = cloudSong(5, 'Five', 100);
   evict(0, -1); // start from an empty cache
   assert.equal(cachedIds().size, 0);
-  for (const s of [s3, s4, s5]) await fetchSong(s, ftp.settings);
+  for (const s of [s3, s4, s5]) await fetchSong(s, remote.settings);
   touch(s3); // s3 played again: s4 is now the oldest of the three
   evict(200, 5); // room for two of the three
   const ids = cachedIds();

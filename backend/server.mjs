@@ -2,7 +2,7 @@
 //   musicDownloader: link -> background job -> audio files in the flat music folder
 //   musicPlayer:     library list, audio stream, cover art, playlists
 //   instrumentalSeparator: library song -> instrumental MP3 (Python + GPU job, one at a time)
-//   cloud:           upload songs to / play songs from the LWS hosting over FTP (10 GB/month budget)
+//   cloud:           upload songs to / play songs from the LWS hosting, through the music API (music-api/)
 // Anything outside /api is the built Angular app (core/static.mjs).
 import http from 'node:http';
 import { existsSync } from 'node:fs';
@@ -16,7 +16,6 @@ import { cancelAll as cancelSeparations, moveOldResults } from './modules/instru
 import { activeJob, cancelJob as cancelDownload } from './modules/musicDownloader/jobs.mjs';
 import { activeSave, cancelSave } from './modules/cloud/save.mjs';
 import { activeUpload, cancelUpload } from './modules/cloud/upload.mjs';
-import { closeLanes } from './modules/cloud/connections.mjs';
 import * as musicPlayer from './modules/musicPlayer/routes.mjs';
 import * as instrumentalSeparator from './modules/instrumentalSeparator/routes.mjs';
 import * as cloud from './modules/cloud/routes.mjs';
@@ -83,7 +82,6 @@ export async function stop() {
   const save = activeSave();
   if (save) cancelSave(save.id);
   cancelSeparations();
-  await closeLanes().catch(() => {});
   server.closeAllConnections?.();
   await new Promise(resolve => server.close(() => resolve()));
   await new Promise(resolve => setTimeout(resolve, 500)); // let the killed processes go

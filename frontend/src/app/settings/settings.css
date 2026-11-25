@@ -179,3 +179,8 @@
 .confirm p {
   margin: 0 0 8px;
 }
+
+/* The cloud address is long: give it the whole row. */
+.field.wide {
+  grid-column: 1 / -1;
+}

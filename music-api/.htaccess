@@ -1,0 +1,18 @@
+# MuseHik music API on Apache (LWS): no folder listings, the config, lib/ and dot files are never served, and every
+# request goes to index.php (clean URLs like /music-api/songs/12/file).
+Options -Indexes
+
+<FilesMatch "^(config.*\.php|\..*)$">
+  Require all denied
+</FilesMatch>
+
+# Nothing here may be kept by the hosting's cache (it would serve key-protected answers without the key).
+<IfModule mod_headers.c>
+  Header always set Cache-Control "private, no-store"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^index\.php$ - [L]
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>

@@ -2,6 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject, inpu
 import { Track } from '../../../core/api';
 import { LibraryService, SongChanges } from '../../../core/library.service';
 import { CloudService, cloudOnline } from '../../cloud/cloud.service';
+import { deviceName, isPhone } from '../../../core/platform';
 
 /**
  * The ⋮ menu of one song, as a dialog: rename (title, artist), genre, delete, and moving it between this laptop and
@@ -102,14 +103,17 @@ import { CloudService, cloudOnline } from '../../cloud/cloud.service';
     <dialog #dialog aria-labelledby="song-menu-title" (close)="closed.emit()">
       <form (submit)="save($event)">
         <h2 id="song-menu-title">{{ track().title }}</h2>
-        <p class="where">{{ onCloud() ? 'On the cloud' : 'On this laptop' }}</p>
+        <p class="where">{{ onCloud() ? (savedHere() ? 'On the cloud, saved on this phone' : 'On the cloud') : isPhone ? 'On this phone' : 'On this laptop' }}</p>
+        @if (!editable()) {
+          <p class="where">Copied onto the phone: rename it from your computer.</p>
+        }
         <label>
           Title
-          <input name="title" autocomplete="off" maxlength="200" [value]="title()" (input)="title.set(value($event))" />
+          <input name="title" autocomplete="off" maxlength="200" [readonly]="!editable()" [value]="title()" (input)="title.set(value($event))" />
         </label>
         <label>
           Artist
-          <input name="artist" autocomplete="off" maxlength="200" [value]="artist()" (input)="artist.set(value($event))" />
+          <input name="artist" autocomplete="off" maxlength="200" [readonly]="!editable()" [value]="artist()" (input)="artist.set(value($event))" />
         </label>
         <label>
           Genre
@@ -119,6 +123,7 @@ import { CloudService, cloudOnline } from '../../cloud/cloud.service';
             maxlength="60"
             list="song-menu-genres"
             placeholder="Rap, Jazz, Pop..."
+            [readonly]="!editable()"
             [value]="genre()"
             (input)="genre.set(value($event))"
           />
@@ -129,15 +134,17 @@ import { CloudService, cloudOnline } from '../../cloud/cloud.service';
           </datalist>
         </label>
         <div class="buttons">
-          <button type="submit" class="action primary" [disabled]="busy() || !changes()">Save</button>
+          <button type="submit" class="action primary" [disabled]="busy() || !changes() || !editable()">Save</button>
           <button type="button" class="action" (click)="close()">Close</button>
         </div>
         <div class="buttons more">
-          @if (!onCloud() && cloudReady()) {
+          @if (!onCloud() && cloudReady() && !isPhone) {
             <button type="button" class="action" [disabled]="busy()" (click)="sendToCloud()">Send to cloud</button>
           }
-          @if (onCloud()) {
-            <button type="button" class="action" [disabled]="busy()" (click)="saveToLaptop()">Save to this laptop</button>
+          @if (onCloud() && savedHere()) {
+            <button type="button" class="action" [disabled]="busy()" (click)="removeFromPhone()">Remove from this phone</button>
+          } @else if (onCloud()) {
+            <button type="button" class="action" [disabled]="busy()" (click)="saveToLaptop()">Save to this {{ device }}</button>
           }
           <button
             type="button"
@@ -169,8 +176,15 @@ export class SongMenu implements AfterViewInit, OnDestroy {
   private readonly cloud = inject(CloudService);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
-  protected readonly onCloud = computed(() => Boolean(this.track().stream));
+  /** Cloud songs have negative ids (on the phone, songs of its Music folder also have a stream URL). */
+  protected readonly onCloud = computed(() => this.track().id < 0);
+  protected readonly isPhone = isPhone;
+  /** A song copied onto the phone by cable: the app cannot rewrite its file. */
+  protected readonly editable = computed(() => this.onCloud() || !isPhone);
   protected readonly cloudReady = computed(() => cloudOnline(this.cloud.settings()));
+  protected readonly device = deviceName;
+  /** Phone: this cloud song has a copy saved on the phone (it is in the phone's All tracks). */
+  protected readonly savedHere = computed(() => isPhone && this.library.tracks().some((t) => t.id === this.track().id));
   /** What the fields showed when the menu opened: only fields changed from these are sent. */
   private readonly initial = computed(() => {
     const t = this.track();
@@ -194,8 +208,9 @@ export class SongMenu implements AfterViewInit, OnDestroy {
     return Object.keys(next).length ? next : null;
   });
   protected readonly deleteLabel = computed(() => {
-    if (!this.confirming()) return this.onCloud() ? 'Delete from the cloud' : 'Delete';
-    return this.onCloud() ? 'Click again: delete it from the cloud for good' : 'Click again: move it to the Recycle Bin';
+    if (!this.confirming()) return this.onCloud() ? 'Delete from the cloud' : isPhone ? 'Delete from this phone' : 'Delete';
+    if (this.onCloud()) return 'Click again: delete it from the cloud for good';
+    return isPhone ? 'Click again: delete it from this phone' : 'Click again: move it to the Recycle Bin';
   });
 
   private gone = false;
@@ -262,20 +277,32 @@ export class SongMenu implements AfterViewInit, OnDestroy {
   protected async saveToLaptop(): Promise<void> {
     await this.act(async () => {
       const { jobId } = await this.cloud.startSave([-this.track().id]);
-      this.status.set({ text: 'Saving it to this laptop...', error: false });
+      this.status.set({ text: `Saving it to this ${deviceName}...`, error: false });
       for (let i = 0; i < 600 && !this.gone; i++) {
         const job = await this.cloud.getSave(jobId);
         if (job.state !== 'running') {
           if (job.saved.length) {
-            this.status.set({ text: 'Saved: it is in your music folder and in All tracks.', error: false });
+            this.status.set({
+              text: isPhone ? 'Saved: it plays without the network, and it is in All tracks.' : 'Saved: it is in your music folder and in All tracks.',
+              error: false,
+            });
             void this.library.load();
             this.changed.emit();
-          } else if (job.skipped.length) this.status.set({ text: 'It is already in your library.', error: false });
+          } else if (job.skipped.length) this.status.set({ text: isPhone ? 'It is already on this phone.' : 'It is already in your library.', error: false });
           else this.status.set({ text: job.failed[0]?.reason ?? job.error ?? 'Could not save it.', error: true });
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
+    });
+  }
+
+  /** Phone: deletes the saved copy; the song stays on the cloud. */
+  protected async removeFromPhone(): Promise<void> {
+    await this.act(async () => {
+      await this.cloud.removeFromPhone(-this.track().id);
+      this.status.set({ text: 'Removed from this phone. It is still on the cloud.', error: false });
+      this.changed.emit();
     });
   }
 
